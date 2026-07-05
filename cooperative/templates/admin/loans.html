@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% block title %}Loans Management{% endblock %}
+{% block breadcrumb_parent %}Admin Panel{% endblock %}
+{% block page_title %}Loans Management{% endblock %}
+
+{% block content %}
+<div class="row g-3 mb-4">
+  <div class="col-auto"><a href="{% url 'admin_loans' %}" class="btn btn-sm {% if not status_filter %}btn-primary{% else %}btn-outline-secondary{% endif %}">All</a></div>
+  <div class="col-auto"><a href="?status=pending" class="btn btn-sm {% if status_filter == 'pending' %}btn-warning{% else %}btn-outline-secondary{% endif %}">Pending <span class="badge bg-warning text-dark ms-1">{{ pending_count }}</span></a></div>
+  <div class="col-auto"><a href="?status=active" class="btn btn-sm {% if status_filter == 'active' %}btn-success{% else %}btn-outline-secondary{% endif %}">Active <span class="badge bg-success ms-1">{{ active_count }}</span></a></div>
+  <div class="col-auto"><a href="?status=overdue" class="btn btn-sm {% if status_filter == 'overdue' %}btn-danger{% else %}btn-outline-secondary{% endif %}">Overdue <span class="badge bg-danger ms-1">{{ overdue_count }}</span></a></div>
+  <div class="col-auto"><a href="?status=repaid" class="btn btn-sm {% if status_filter == 'repaid' %}btn-secondary{% else %}btn-outline-secondary{% endif %}">Repaid</a></div>
+  <div class="ms-auto col-auto">
+    <form method="get" class="d-flex gap-2">
+      <input type="hidden" name="status" value="{{ status_filter }}">
+      <div class="input-icon-wrap">
+        <i class="bi bi-search input-icon"></i>
+        <input type="text" name="q" value="{{ search }}" class="form-control form-control-sm" placeholder="Search by name or ID…">
+      </div>
+      <button class="btn btn-sm btn-outline-primary" type="submit"><i class="bi bi-search"></i></button>
+    </form>
+  </div>
+</div>
+
+<div class="card-panel">
+  <div class="panel-header"><div class="panel-title">Loan Applications <span class="badge bg-primary ms-2">{{ loans.paginator.count }}</span></div></div>
+  <div class="panel-body p-0">
+    <table class="table table-hover coop-table mb-0">
+      <thead>
+        <tr><th>Loan ID</th><th>Member</th><th>Amount</th><th>Purpose</th><th>Applied</th><th>Status</th><th>Risk</th><th>Action</th></tr>
+      </thead>
+      <tbody>
+        {% for loan in loans %}
+        <tr>
+          <td><code class="text-primary">{{ loan.loan_id }}</code></td>
+          <td>
+            <div class="member-cell">
+              <div class="avatar-sm">{{ loan.member.user.first_name|first }}{{ loan.member.user.last_name|first }}</div>
+              <div>
+                <div class="fw-500">{{ loan.member.full_name }}</div>
+                <div class="text-muted small">{{ loan.member.member_id }}</div>
+              </div>
+            </div>
+          </td>
+          <td class="fw-600">₦{{ loan.amount_requested|floatformat:2 }}</td>
+          <td class="text-muted small">{{ loan.get_purpose_display }}</td>
+          <td class="text-muted small">{{ loan.application_date }}</td>
+          <td><span class="badge-status {{ loan.status }}">{{ loan.get_status_display }}</span></td>
+          <td>
+            {% if loan.risk_score %}<span class="badge-risk {{ loan.risk_score|lower }}">{{ loan.risk_score }}</span>
+            {% else %}<span class="text-muted small">—</span>{% endif %}
+          </td>
+          <td><a href="{% url 'admin_loan_detail' loan.loan_id %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye me-1"></i>Review</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="text-center text-muted py-5">No loan applications found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if loans.has_other_pages %}
+  <div class="panel-footer d-flex justify-content-center py-3">
+    <nav><ul class="pagination pagination-sm mb-0">
+      {% if loans.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ loans.previous_page_number }}&status={{ status_filter }}&q={{ search }}">‹</a></li>{% endif %}
+      {% for n in loans.paginator.page_range %}
+      <li class="page-item {% if loans.number == n %}active{% endif %}"><a class="page-link" href="?page={{ n }}&status={{ status_filter }}&q={{ search }}">{{ n }}</a></li>
+      {% endfor %}
+      {% if loans.has_next %}<li class="page-item"><a class="page-link" href="?page={{ loans.next_page_number }}&status={{ status_filter }}&q={{ search }}">›</a></li>{% endif %}
+    </ul></nav>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

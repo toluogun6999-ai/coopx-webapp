@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% block title %}Financial Reports{% endblock %}
+{% block breadcrumb_parent %}Admin Panel{% endblock %}
+{% block page_title %}Financial Reports{% endblock %}
+
+{% block content %}
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-xl-3"><div class="stat-card blue"><div class="stat-icon"><i class="bi bi-piggy-bank-fill"></i></div><div class="stat-body"><div class="stat-label">Gross Savings</div><div class="stat-value" style="font-size:1.2rem">₦{{ total_savings|floatformat:2 }}</div></div></div></div>
+  <div class="col-sm-6 col-xl-3"><div class="stat-card green"><div class="stat-icon"><i class="bi bi-bank"></i></div><div class="stat-body"><div class="stat-label">Net Savings Pool</div><div class="stat-value" style="font-size:1.2rem">₦{{ net_pool|floatformat:2 }}</div></div></div></div>
+  <div class="col-sm-6 col-xl-3"><div class="stat-card orange"><div class="stat-icon"><i class="bi bi-cash-stack"></i></div><div class="stat-body"><div class="stat-label">Loans Disbursed</div><div class="stat-value" style="font-size:1.2rem">₦{{ total_disbursed|floatformat:2 }}</div></div></div></div>
+  <div class="col-sm-6 col-xl-3"><div class="stat-card purple"><div class="stat-icon"><i class="bi bi-graph-up-arrow"></i></div><div class="stat-body"><div class="stat-label">Total Repaid</div><div class="stat-value" style="font-size:1.2rem">₦{{ total_repaid|floatformat:2 }}</div></div></div></div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-lg-8">
+    <div class="card-panel h-100">
+      <div class="panel-header"><div class="panel-title">Annual Savings Overview</div><div class="panel-sub">Monthly deposits — last 12 months</div></div>
+      <div class="panel-body"><canvas id="annualChart" height="250"></canvas></div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card-panel h-100">
+      <div class="panel-header"><div class="panel-title">Summary</div></div>
+      <div class="panel-body">
+        <div class="summary-list">
+          <div class="summary-row"><span>Total Members</span><strong>{{ members_count }}</strong></div>
+          <div class="summary-row"><span>Gross Savings</span><strong class="text-success">₦{{ total_savings|floatformat:2 }}</strong></div>
+          <div class="summary-row"><span>Total Withdrawals</span><strong class="text-danger">₦{{ total_withdrawals|floatformat:2 }}</strong></div>
+          <div class="summary-row"><span>Contributions</span><strong class="text-primary">₦{{ total_contributions|floatformat:2 }}</strong></div>
+          <div class="summary-row border-top pt-3 mt-2"><span class="fw-600">Net Pool</span><strong class="text-primary fs-5">₦{{ net_pool|floatformat:2 }}</strong></div>
+          <div class="summary-row"><span>Loans Disbursed</span><strong class="text-warning">₦{{ total_disbursed|floatformat:2 }}</strong></div>
+          <div class="summary-row"><span>Total Repaid</span><strong class="text-success">₦{{ total_repaid|floatformat:2 }}</strong></div>
+          <div class="summary-row"><span>Active Loans</span><strong>{{ active_loans }}</strong></div>
+          <div class="summary-row"><span>Overdue Loans</span><strong class="text-danger">{{ overdue_loans }}</strong></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- REPORT DOWNLOAD CARDS -->
+<div class="card-panel">
+  <div class="panel-header"><div class="panel-title">Available Reports</div></div>
+  <div class="panel-body">
+    <div class="row g-3">
+      {% for rep in reports_list %}
+      <div class="col-md-4">
+        <div class="report-card">
+          <div class="report-icon {{ rep.color }}"><i class="bi bi-{{ rep.icon }}"></i></div>
+          <div class="report-info">
+            <div class="report-name">{{ rep.name }}</div>
+            <div class="report-desc text-muted small">{{ rep.desc }}</div>
+          </div>
+          <button class="btn btn-sm btn-outline-primary ms-auto"><i class="bi bi-download me-1"></i>Export</button>
+        </div>
+      </div>
+      {% empty %}
+      {% for r in "123456"|make_list %}
+      <div class="col-md-4">
+        <div class="report-card">
+          <div class="report-icon {% cycle 'blue' 'green' 'orange' 'purple' 'red' 'teal' %}">
+            <i class="bi bi-{% cycle 'people' 'piggy-bank' 'credit-card' 'graph-up' 'cash-stack' 'bar-chart-line' %}"></i>
+          </div>
+          <div class="report-info">
+            <div class="report-name">{% cycle 'Member Register' 'Savings Statement' 'Loan Ledger' 'Repayment Report' 'Financial Summary' 'ML Risk Report' %}</div>
+            <div class="text-muted small">{% cycle 'All registered members' 'Savings & contributions' 'All loan records' 'Repayment history' 'P&L overview' 'Default predictions' %}</div>
+          </div>
+          <button class="btn btn-sm btn-outline-primary ms-auto"><i class="bi bi-download"></i></button>
+        </div>
+      </div>
+      {% endfor %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const monthly = {{ monthly_json|safe }};
+new Chart(document.getElementById('annualChart'), {
+  type: 'bar',
+  data: {
+    labels: monthly.map(d => d.month),
+    datasets: [{
+      label: 'Monthly Savings (₦)', data: monthly.map(d => d.savings),
+      backgroundColor: 'rgba(37,99,235,0.8)', borderRadius: 5
+    }]
+  },
+  options: { responsive: true, plugins: { legend: { display: false } },
+    scales: { y: { ticks: { callback: v => '₦' + (v/1000).toFixed(0) + 'k' }, grid: { color: '#f3f4f6' } },
+              x: { grid: { display: false } } } }
+});
+</script>
+{% endblock %}

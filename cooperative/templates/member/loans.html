@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+{% block title %}My Loans{% endblock %}
+{% block breadcrumb_parent %}Member Portal{% endblock %}
+{% block page_title %}My Loans{% endblock %}
+{% block content %}
+<div class="row g-4 mb-4">
+  <div class="col-lg-4">
+    <div class="card-panel {% if is_eligible %}border-success{% else %}border-warning{% endif %} border-2 mb-4">
+      <div class="panel-header"><div class="panel-title">Loan Eligibility</div></div>
+      <div class="panel-body text-center py-3">
+        <div class="fs-1 mb-2">{% if is_eligible %}✅{% else %}⏳{% endif %}</div>
+        <div class="fw-700 fs-5 mb-1">{% if is_eligible %}You are Eligible!{% else %}Not Yet Eligible{% endif %}</div>
+        <div class="text-muted small mb-3">Maximum loan amount: <strong>₦{{ max_loan|floatformat:0 }}</strong></div>
+        <div class="summary-list text-start">
+          <div class="summary-row"><span>Savings Balance</span><strong>₦{{ member.total_savings|floatformat:0 }}</strong></div>
+          <div class="summary-row"><span>Months as Member</span><strong>{{ member.months_as_member }}</strong></div>
+          <div class="summary-row"><span>Min. Savings Required</span><strong>₦{{ settings.min_savings_for_loan|floatformat:0 }}</strong></div>
+          <div class="summary-row"><span>Min. Months Required</span><strong>{{ settings.min_months_for_loan }}</strong></div>
+          <div class="summary-row"><span>Interest Rate</span><strong>{{ settings.default_interest_rate }}% p.a.</strong></div>
+        </div>
+      </div>
+    </div>
+
+    {% if is_eligible and not loans.filter %}
+    <div class="card-panel">
+      <div class="panel-header"><div class="panel-title">Apply for Loan</div></div>
+      <div class="panel-body">
+        <form method="post">
+          {% csrf_token %}
+          {% for field in form %}
+          <div class="mb-3">
+            <label class="form-label fw-500 small">{{ field.label }}</label>
+            {{ field }}
+            {% if field.errors %}<div class="text-danger small">{{ field.errors.0 }}</div>{% endif %}
+          </div>
+          {% endfor %}
+          <button type="submit" class="btn btn-primary w-100"><i class="bi bi-send me-2"></i>Submit Application</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="col-lg-8">
+    {% if is_eligible %}
+    <div class="card-panel mb-4">
+      <div class="panel-header"><div class="panel-title">Apply for Loan</div></div>
+      <div class="panel-body">
+        <form method="post">
+          {% csrf_token %}
+          <div class="row g-3">
+            {% for field in form %}
+            <div class="col-md-{% if field.name == 'purpose_description' %}12{% else %}6{% endif %}">
+              <label class="form-label fw-500 small">{{ field.label }}</label>
+              {{ field }}
+              {% if field.errors %}<div class="text-danger small">{{ field.errors.0 }}</div>{% endif %}
+            </div>
+            {% endfor %}
+          </div>
+          <div class="mt-3">
+            <button type="submit" class="btn btn-primary px-5"><i class="bi bi-send me-2"></i>Submit Application</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="card-panel">
+      <div class="panel-header"><div class="panel-title">My Loan Applications</div></div>
+      <div class="panel-body p-0">
+        <table class="table table-hover coop-table mb-0">
+          <thead><tr><th>Loan ID</th><th>Amount</th><th>Purpose</th><th>EMI</th><th>Progress</th><th>Status</th></tr></thead>
+          <tbody>
+            {% for loan in loans %}
+            <tr>
+              <td><code class="text-primary small">{{ loan.loan_id }}</code></td>
+              <td class="fw-600">₦{{ loan.amount_requested|floatformat:2 }}</td>
+              <td class="text-muted small">{{ loan.get_purpose_display }}</td>
+              <td class="text-success fw-500 small">₦{{ loan.monthly_emi|floatformat:2 }}</td>
+              <td style="min-width:100px">
+                <div class="progress mb-1" style="height:5px;border-radius:4px">
+                  <div class="progress-bar bg-success" style="width:{{ loan.repayment_percentage }}%"></div>
+                </div>
+                <span class="text-muted" style="font-size:10px">{{ loan.repayment_percentage }}%</span>
+              </td>
+              <td><span class="badge-status {{ loan.status }}">{{ loan.get_status_display }}</span></td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-center text-muted py-5">No loan applications yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

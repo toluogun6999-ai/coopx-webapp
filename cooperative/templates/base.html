@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}CoopSys{% endblock %} | Cooperative Society Management System</title>
+
+  <!-- Bootstrap 5 -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" />
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <!-- Custom CSS -->
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+  {% block extra_css %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+
+{% if messages %}
+<div class="toast-container position-fixed top-0 end-0 p-3" style="z-index:9999">
+  {% for message in messages %}
+  <div class="toast align-items-center border-0 show text-bg-{% if message.tags == 'error' %}danger{% elif message.tags == 'success' %}success{% elif message.tags == 'warning' %}warning{% else %}info{% endif %}" role="alert">
+    <div class="d-flex">
+      <div class="toast-body fw-500">
+        <i class="bi bi-{% if message.tags == 'error' %}x-circle{% elif message.tags == 'success' %}check-circle{% else %}info-circle{% endif %} me-2"></i>
+        {{ message }}
+      </div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% block full_content %}
+<!-- Main app layout with sidebar -->
+<div class="app-wrapper">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon"><i class="bi bi-shield-check"></i></div>
+      <span class="brand-name">CoopSys</span>
+    </div>
+
+    <div class="sidebar-section-label">MAIN MENU</div>
+    <nav class="sidebar-nav">
+      {% if request.user.is_staff or member_profile.is_admin %}
+        <a href="{% url 'admin_dashboard' %}" class="nav-link {% if request.resolver_match.url_name == 'admin_dashboard' %}active{% endif %}">
+          <i class="bi bi-grid-1x2"></i><span>Dashboard</span>
+        </a>
+        <a href="{% url 'admin_members' %}" class="nav-link {% if 'member' in request.resolver_match.url_name and 'admin' in request.resolver_match.url_name %}active{% endif %}">
+          <i class="bi bi-people"></i><span>Members</span>
+        </a>
+        <a href="{% url 'admin_savings' %}" class="nav-link {% if request.resolver_match.url_name == 'admin_savings' %}active{% endif %}">
+          <i class="bi bi-piggy-bank"></i><span>Savings</span>
+        </a>
+        <a href="{% url 'admin_loans' %}" class="nav-link {% if 'loan' in request.resolver_match.url_name and 'admin' in request.resolver_match.url_name %}active{% endif %}">
+          <i class="bi bi-credit-card"></i><span>Loans</span>
+          {% if pending_loans_count %}<span class="badge-count">{{ pending_loans_count }}</span>{% endif %}
+        </a>
+        <a href="{% url 'admin_analytics' %}" class="nav-link {% if request.resolver_match.url_name == 'admin_analytics' %}active{% endif %}">
+          <i class="bi bi-cpu"></i><span>ML Analytics</span>
+        </a>
+        <a href="{% url 'admin_reports' %}" class="nav-link {% if request.resolver_match.url_name == 'admin_reports' %}active{% endif %}">
+          <i class="bi bi-bar-chart-line"></i><span>Reports</span>
+        </a>
+        <div class="sidebar-section-label mt-3">SYSTEM</div>
+        <a href="{% url 'admin_settings' %}" class="nav-link {% if request.resolver_match.url_name == 'admin_settings' %}active{% endif %}">
+          <i class="bi bi-gear"></i><span>Settings</span>
+        </a>
+      {% else %}
+        <a href="{% url 'member_dashboard' %}" class="nav-link {% if request.resolver_match.url_name == 'member_dashboard' %}active{% endif %}">
+          <i class="bi bi-grid-1x2"></i><span>Dashboard</span>
+        </a>
+        <a href="{% url 'member_profile' %}" class="nav-link {% if request.resolver_match.url_name == 'member_profile' %}active{% endif %}">
+          <i class="bi bi-person-circle"></i><span>My Profile</span>
+        </a>
+        <a href="{% url 'member_savings' %}" class="nav-link {% if request.resolver_match.url_name == 'member_savings' %}active{% endif %}">
+          <i class="bi bi-piggy-bank"></i><span>My Savings</span>
+        </a>
+        <a href="{% url 'member_loans' %}" class="nav-link {% if request.resolver_match.url_name == 'member_loans' %}active{% endif %}">
+          <i class="bi bi-credit-card"></i><span>My Loans</span>
+        </a>
+        <a href="{% url 'member_transactions' %}" class="nav-link {% if request.resolver_match.url_name == 'member_transactions' %}active{% endif %}">
+          <i class="bi bi-receipt"></i><span>Transactions</span>
+        </a>
+        <a href="{% url 'member_notifications' %}" class="nav-link {% if request.resolver_match.url_name == 'member_notifications' %}active{% endif %}">
+          <i class="bi bi-bell"></i><span>Notifications</span>
+          {% if unread_notifications %}<span class="badge-count">{{ unread_notifications }}</span>{% endif %}
+        </a>
+      {% endif %}
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-card">
+        <div class="user-avatar">
+          {{ request.user.first_name|first|default:request.user.username|first|upper }}{{ request.user.last_name|first|upper }}
+        </div>
+        <div class="user-info">
+          <div class="user-name">{{ request.user.get_full_name|default:request.user.username }}</div>
+          <div class="user-role">{% if request.user.is_staff %}Administrator{% else %}Member{% endif %}</div>
+        </div>
+        <a href="{% url 'logout' %}" class="btn-logout" title="Sign out"><i class="bi bi-box-arrow-right"></i></a>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="main-content">
+    <!-- TOP NAVBAR -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">
+          <i class="bi bi-list"></i>
+        </button>
+        <div class="breadcrumb-area">
+          <span class="breadcrumb-sub">{% block breadcrumb_parent %}Dashboard{% endblock %}</span>
+          <h1 class="page-title">{% block page_title %}{% endblock %}</h1>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <a href="{% if request.user.is_staff or member_profile.is_admin %}{% url 'admin_analytics' %}{% else %}{% url 'member_notifications' %}{% endif %}" class="topbar-icon-btn" title="Notifications">
+          <i class="bi bi-bell"></i>
+          {% if unread_notifications %}<span class="notif-dot">{{ unread_notifications }}</span>{% endif %}
+        </a>
+        <div class="topbar-avatar">
+          {{ request.user.first_name|first|default:"A"|upper }}{{ request.user.last_name|first|upper }}
+        </div>
+        <div class="topbar-user-info">
+          <span class="topbar-name">{{ request.user.get_full_name|default:request.user.username }}</span>
+          <span class="topbar-role">{% if request.user.is_staff %}Admin{% else %}Member {% if member_profile %}· {{ member_profile.member_id }}{% endif %}{% endif %}</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- PAGE CONTENT -->
+    <div class="page-body">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+</div>
+{% endblock %}
+
+<!-- Bootstrap 5 JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<!-- Custom JS -->
+<script src="{% static 'js/main.js' %}"></script>
+
+<script>
+// Auto-dismiss toasts
+document.querySelectorAll('.toast').forEach(t => {
+  setTimeout(() => { new bootstrap.Toast(t).hide(); }, 4000);
+});
+
+// Sidebar toggle
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('collapsed');
+  document.querySelector('.main-content').classList.toggle('expanded');
+}
+</script>
+
+{% block extra_js %}{% endblock %}
+</body>
+</html>

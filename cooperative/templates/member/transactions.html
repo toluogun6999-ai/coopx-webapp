@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% block title %}Transaction History{% endblock %}
+{% block breadcrumb_parent %}Member Portal{% endblock %}
+{% block page_title %}Transaction History{% endblock %}
+
+{% block content %}
+<div class="card-panel">
+  <div class="panel-header">
+    <div>
+      <div class="panel-title">All Transactions</div>
+      <div class="panel-sub">Complete audit trail of your financial activity</div>
+    </div>
+    <span class="badge bg-primary px-3 py-2">{{ page_txns.paginator.count }} records</span>
+  </div>
+  <div class="panel-body p-0">
+    <table class="table table-hover coop-table mb-0">
+      <thead>
+        <tr>
+          <th>Transaction ID</th>
+          <th>Description</th>
+          <th>Type</th>
+          <th>Amount</th>
+          <th>Reference</th>
+          <th>Date &amp; Time</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in page_txns %}
+        <tr>
+          <td><code class="text-muted small">{{ t.transaction_id }}</code></td>
+          <td class="fw-500 small">{{ t.description }}</td>
+          <td>
+            <span class="badge bg-light text-dark border small">{{ t.get_transaction_type_display }}</span>
+          </td>
+          <td>
+            <span class="fw-600 {% if t.transaction_type in 'savings_deposit,dividend,loan_disbursement' %}text-success{% else %}text-danger{% endif %}">
+              {% if t.transaction_type in 'savings_deposit,dividend,loan_disbursement' %}+{% else %}-{% endif %}₦{{ t.amount|floatformat:2 }}
+            </span>
+          </td>
+          <td><code class="text-muted small">{{ t.reference_id|default:"—" }}</code></td>
+          <td class="text-muted small">{{ t.date|date:"d M Y, H:i" }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="6" class="text-center text-muted py-6">
+            <i class="bi bi-receipt fs-1 d-block mb-3 text-muted"></i>
+            No transactions recorded yet.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if page_txns.has_other_pages %}
+  <div class="panel-footer d-flex justify-content-center py-3">
+    <nav>
+      <ul class="pagination pagination-sm mb-0">
+        {% if page_txns.has_previous %}
+        <li class="page-item"><a class="page-link" href="?page={{ page_txns.previous_page_number }}">‹ Prev</a></li>
+        {% endif %}
+        {% for num in page_txns.paginator.page_range %}
+        <li class="page-item {% if page_txns.number == num %}active{% endif %}">
+          <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+        </li>
+        {% endfor %}
+        {% if page_txns.has_next %}
+        <li class="page-item"><a class="page-link" href="?page={{ page_txns.next_page_number }}">Next ›</a></li>
+        {% endif %}
+      </ul>
+    </nav>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Register — CoopSys</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+</head>
+<body class="auth-body">
+<div class="auth-wrapper">
+  <div class="auth-left">
+    <div class="auth-brand">
+      <div class="brand-icon"><i class="bi bi-shield-check"></i></div>
+      <span class="brand-name">CoopSys</span>
+    </div>
+    <h1 class="auth-tagline">Join the cooperative. Build your future.</h1>
+    <p class="auth-sub text-white-50">Create your member account and gain access to savings, loans, contributions, and real-time financial tracking.</p>
+    <div class="auth-steps mt-5">
+      <div class="step active"><div class="step-num">1</div><span>Create account</span></div>
+      <div class="step"><div class="step-num">2</div><span>Verify profile</span></div>
+      <div class="step"><div class="step-num">3</div><span>Start saving</span></div>
+    </div>
+  </div>
+  <div class="auth-right auth-right-scroll">
+    <div class="auth-card">
+      <h2 class="auth-title">Create your account</h2>
+      <p class="text-muted mb-4 small">Fill in the form below to register as a cooperative member.</p>
+
+      {% if form.errors %}
+      <div class="alert alert-danger py-2 small">
+        <i class="bi bi-exclamation-circle me-1"></i>
+        Please correct the errors below.
+      </div>
+      {% endif %}
+
+      <form method="post" novalidate>
+        {% csrf_token %}
+        <div class="row g-3">
+          <div class="col-6">
+            <label class="form-label fw-500 small">First Name <span class="text-danger">*</span></label>
+            {{ form.first_name }}
+            {% if form.first_name.errors %}<div class="text-danger small mt-1">{{ form.first_name.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-6">
+            <label class="form-label fw-500 small">Last Name <span class="text-danger">*</span></label>
+            {{ form.last_name }}
+            {% if form.last_name.errors %}<div class="text-danger small mt-1">{{ form.last_name.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-500 small">Username <span class="text-danger">*</span></label>
+            {{ form.username }}
+            {% if form.username.errors %}<div class="text-danger small mt-1">{{ form.username.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-500 small">Email Address <span class="text-danger">*</span></label>
+            {{ form.email }}
+            {% if form.email.errors %}<div class="text-danger small mt-1">{{ form.email.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-6">
+            <label class="form-label fw-500 small">Phone Number <span class="text-danger">*</span></label>
+            {{ form.phone }}
+            {% if form.phone.errors %}<div class="text-danger small mt-1">{{ form.phone.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-6">
+            <label class="form-label fw-500 small">Gender <span class="text-danger">*</span></label>
+            {{ form.gender }}
+            {% if form.gender.errors %}<div class="text-danger small mt-1">{{ form.gender.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-500 small">Residential Address <span class="text-danger">*</span></label>
+            {{ form.address }}
+            {% if form.address.errors %}<div class="text-danger small mt-1">{{ form.address.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-6">
+            <label class="form-label fw-500 small">Occupation</label>
+            {{ form.occupation }}
+          </div>
+          <div class="col-6">
+            <label class="form-label fw-500 small">Monthly Income (₦)</label>
+            {{ form.monthly_income }}
+          </div>
+          <div class="col-6">
+            <label class="form-label fw-500 small">Password <span class="text-danger">*</span></label>
+            {{ form.password1 }}
+            {% if form.password1.errors %}<div class="text-danger small mt-1">{{ form.password1.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-6">
+            <label class="form-label fw-500 small">Confirm Password <span class="text-danger">*</span></label>
+            {{ form.password2 }}
+            {% if form.password2.errors %}<div class="text-danger small mt-1">{{ form.password2.errors.0 }}</div>{% endif %}
+          </div>
+        </div>
+        <div class="form-check mt-3 mb-4">
+          <input class="form-check-input" type="checkbox" id="terms" required>
+          <label class="form-check-label small text-muted" for="terms">
+            I agree to the cooperative's terms and conditions
+          </label>
+        </div>
+        <button type="submit" class="btn btn-primary w-100 py-2 fw-600">
+          Create Account <i class="bi bi-arrow-right ms-2"></i>
+        </button>
+      </form>
+      <div class="text-center mt-3">
+        <span class="text-muted small">Already a member?</span>
+        <a href="{% url 'login' %}" class="text-primary fw-500 ms-1 small">Sign in</a>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

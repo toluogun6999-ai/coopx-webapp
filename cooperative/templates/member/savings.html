@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}My Savings{% endblock %}
+{% block breadcrumb_parent %}Member Portal{% endblock %}
+{% block page_title %}My Savings{% endblock %}
+{% block content %}
+<div class="row g-3 mb-4">
+  <div class="col-sm-4"><div class="stat-card blue"><div class="stat-icon"><i class="bi bi-piggy-bank-fill"></i></div><div class="stat-body"><div class="stat-label">Total Deposited</div><div class="stat-value" style="font-size:1.3rem">₦{{ total_deposited|floatformat:2 }}</div></div></div></div>
+  <div class="col-sm-4"><div class="stat-card red"><div class="stat-icon"><i class="bi bi-arrow-up-square-fill"></i></div><div class="stat-body"><div class="stat-label">Total Withdrawn</div><div class="stat-value" style="font-size:1.3rem">₦{{ total_withdrawn|floatformat:2 }}</div></div></div></div>
+  <div class="col-sm-4"><div class="stat-card green"><div class="stat-icon"><i class="bi bi-wallet-fill"></i></div><div class="stat-body"><div class="stat-label">Net Savings Balance</div><div class="stat-value" style="font-size:1.3rem">₦{{ net_savings|floatformat:2 }}</div></div></div></div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-lg-8">
+    <div class="card-panel">
+      <div class="panel-header"><div class="panel-title">Savings Transactions</div></div>
+      <div class="panel-body p-0">
+        <table class="table table-hover coop-table mb-0">
+          <thead><tr><th>Transaction ID</th><th>Type</th><th>Amount</th><th>Balance After</th><th>Description</th><th>Date</th></tr></thead>
+          <tbody>
+            {% for s in page_savings %}
+            <tr>
+              <td class="text-muted small">{{ s.transaction_id }}</td>
+              <td><span class="badge-status {% if s.transaction_type == 'deposit' %}active{% else %}overdue{% endif %}">{{ s.get_transaction_type_display }}</span></td>
+              <td class="fw-600 {% if s.transaction_type == 'deposit' %}text-success{% else %}text-danger{% endif %}">{% if s.transaction_type == 'deposit' %}+{% else %}-{% endif %}₦{{ s.amount|floatformat:2 }}</td>
+              <td class="fw-500 text-primary">₦{{ s.balance_after|floatformat:2 }}</td>
+              <td class="text-muted small">{{ s.description|default:"—" }}</td>
+              <td class="text-muted small">{{ s.date }}</td>
+            </tr>
+            {% empty %}<tr><td colspan="6" class="text-center text-muted py-5">No savings records yet.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if page_savings.has_other_pages %}
+      <div class="panel-footer d-flex justify-content-center py-3">
+        <nav><ul class="pagination pagination-sm mb-0">
+          {% if page_savings.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ page_savings.previous_page_number }}">‹</a></li>{% endif %}
+          {% for n in page_savings.paginator.page_range %}<li class="page-item {% if page_savings.number == n %}active{% endif %}"><a class="page-link" href="?page={{ n }}">{{ n }}</a></li>{% endfor %}
+          {% if page_savings.has_next %}<li class="page-item"><a class="page-link" href="?page={{ page_savings.next_page_number }}">›</a></li>{% endif %}
+        </ul></nav>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card-panel">
+      <div class="panel-header"><div class="panel-title">Contributions</div></div>
+      <div class="panel-body p-0">
+        <table class="table coop-table mb-0">
+          <thead><tr><th>Period</th><th>Amount</th><th>Paid</th></tr></thead>
+          <tbody>
+            {% for c in contributions %}
+            <tr>
+              <td class="text-muted small">{{ c.period }}</td>
+              <td class="fw-500">₦{{ c.amount|floatformat:2 }}</td>
+              <td>{% if c.is_paid %}<i class="bi bi-check-circle-fill text-success"></i>{% else %}<i class="bi bi-x-circle-fill text-danger"></i>{% endif %}</td>
+            </tr>
+            {% empty %}<tr><td colspan="3" class="text-center text-muted py-3">No contributions recorded.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

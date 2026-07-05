@@ -1,0 +1,22 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+db.sqlite3
+*.joblib
+
+# Node
+node_modules/
+dist/
+.output/
+.vinxi/
+.tanstack/
+
+# Env (real secrets — never commit)
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/

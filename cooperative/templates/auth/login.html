@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign In — CoopSys</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+</head>
+<body class="auth-body">
+<div class="auth-wrapper">
+  <div class="auth-left">
+    <div class="auth-brand">
+      <div class="brand-icon"><i class="bi bi-shield-check"></i></div>
+      <span class="brand-name">CoopSys</span>
+    </div>
+    <h1 class="auth-tagline">Manage your cooperative with intelligence.</h1>
+    <p class="auth-sub text-white-50">Savings, loans, contributions, and ML-powered risk assessment — all in one secure platform.</p>
+    <div class="auth-features mt-5">
+      <div class="auth-feature"><i class="bi bi-check-circle-fill text-success me-2"></i>Role-based access control</div>
+      <div class="auth-feature"><i class="bi bi-check-circle-fill text-success me-2"></i>ML Loan Default Prediction</div>
+      <div class="auth-feature"><i class="bi bi-check-circle-fill text-success me-2"></i>Real-time analytics dashboard</div>
+      <div class="auth-feature"><i class="bi bi-check-circle-fill text-success me-2"></i>Secure encrypted sessions</div>
+    </div>
+  </div>
+  <div class="auth-right">
+    <div class="auth-card">
+      <h2 class="auth-title">Welcome back</h2>
+      <p class="text-muted mb-4">Sign in to access your cooperative account.</p>
+
+      {% if form.errors %}
+      <div class="alert alert-danger d-flex gap-2 align-items-center py-2">
+        <i class="bi bi-exclamation-circle-fill"></i>
+        Invalid username or password. Please try again.
+      </div>
+      {% endif %}
+
+      <form method="post" autocomplete="off">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label class="form-label fw-500">Username</label>
+          <div class="input-icon-wrap">
+            <i class="bi bi-person input-icon"></i>
+            {{ form.username }}
+          </div>
+        </div>
+        <div class="mb-4">
+          <label class="form-label fw-500">Password</label>
+          <div class="input-icon-wrap">
+            <i class="bi bi-lock input-icon"></i>
+            {{ form.password }}
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary w-100 py-2 fw-600">
+          Sign In <i class="bi bi-arrow-right ms-2"></i>
+        </button>
+      </form>
+
+      <div class="text-center mt-4">
+        <span class="text-muted small">Don't have an account?</span>
+        <a href="{% url 'register' %}" class="text-primary fw-500 ms-1 small">Create one</a>
+      </div>
+
+      <div class="demo-credentials mt-4 p-3 rounded-3 bg-light border">
+        <div class="fw-600 small mb-2"><i class="bi bi-info-circle me-1"></i>Demo Credentials</div>
+        <div class="small text-muted">Admin: <code>admin</code> / <code>admin123</code></div>
+        <div class="small text-muted">Member: Register a new account</div>
+      </div>
+    </div>
+    <div class="text-center mt-3">
+      <a href="{% url 'home' %}" class="text-muted small text-decoration-none">
+        <i class="bi bi-arrow-left me-1"></i>Back to Home
+      </a>
+    </div>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

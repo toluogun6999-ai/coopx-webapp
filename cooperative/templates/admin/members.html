@@ -1,0 +1,124 @@
+{% extends 'base.html' %}
+{% block title %}Members Management{% endblock %}
+{% block breadcrumb_parent %}Admin Panel{% endblock %}
+{% block page_title %}Members Management{% endblock %}
+
+{% block content %}
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <form method="get" class="d-flex gap-2">
+      <div class="input-icon-wrap flex-grow-1">
+        <i class="bi bi-search input-icon"></i>
+        <input type="text" name="q" value="{{ search }}" class="form-control" placeholder="Search by name, ID, or email…">
+      </div>
+      <select name="status" class="form-control" style="max-width:130px" onchange="this.form.submit()">
+        <option value="">All Status</option>
+        <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
+        <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactive</option>
+        <option value="suspended" {% if status_filter == 'suspended' %}selected{% endif %}>Suspended</option>
+      </select>
+      <button class="btn btn-primary px-3" type="submit"><i class="bi bi-search"></i></button>
+    </form>
+  </div>
+  <div class="col-md-8 d-flex justify-content-end gap-2">
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addMemberModal">
+      <i class="bi bi-person-plus-fill me-2"></i>Add Member
+    </button>
+  </div>
+</div>
+
+<div class="card-panel">
+  <div class="panel-header">
+    <div class="panel-title">All Members <span class="badge bg-primary ms-2">{{ members.paginator.count }}</span></div>
+  </div>
+  <div class="panel-body p-0">
+    <table class="table table-hover coop-table mb-0">
+      <thead>
+        <tr>
+          <th>Member</th><th>Member ID</th><th>Phone</th><th>Savings</th>
+          <th>Active Loans</th><th>Join Date</th><th>Status</th><th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in members %}
+        <tr>
+          <td>
+            <div class="member-cell">
+              <div class="avatar-sm">{{ m.user.first_name|first }}{{ m.user.last_name|first }}</div>
+              <div>
+                <div class="fw-500">{{ m.full_name }}</div>
+                <div class="text-muted small">{{ m.user.email }}</div>
+              </div>
+            </div>
+          </td>
+          <td><code class="text-primary">{{ m.member_id }}</code></td>
+          <td>{{ m.phone }}</td>
+          <td class="fw-600 text-primary">₦{{ m.total_savings|floatformat:2 }}</td>
+          <td>
+            {% if m.active_loans > 0 %}
+            <span class="badge bg-warning text-dark">{{ m.active_loans }} loan{{ m.active_loans|pluralize }}</span>
+            {% else %}<span class="text-muted small">None</span>{% endif %}
+          </td>
+          <td class="text-muted small">{{ m.join_date }}</td>
+          <td><span class="badge-status {{ m.status }}">{{ m.status|capfirst }}</span></td>
+          <td>
+            <a href="{% url 'admin_member_detail' m.member_id %}" class="btn btn-sm btn-outline-primary">
+              <i class="bi bi-eye"></i> View
+            </a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="text-center text-muted py-5">No members found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if members.has_other_pages %}
+  <div class="panel-footer d-flex justify-content-center py-3">
+    <nav>
+      <ul class="pagination pagination-sm mb-0">
+        {% if members.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ members.previous_page_number }}&q={{ search }}">‹</a></li>{% endif %}
+        {% for num in members.paginator.page_range %}
+        <li class="page-item {% if members.number == num %}active{% endif %}">
+          <a class="page-link" href="?page={{ num }}&q={{ search }}">{{ num }}</a>
+        </li>
+        {% endfor %}
+        {% if members.has_next %}<li class="page-item"><a class="page-link" href="?page={{ members.next_page_number }}&q={{ search }}">›</a></li>{% endif %}
+      </ul>
+    </nav>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ADD MEMBER MODAL -->
+<div class="modal fade" id="addMemberModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-700">Add New Member</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post">
+        {% csrf_token %}
+        <div class="modal-body">
+          <div class="row g-3">
+            {% for field in form %}
+            <div class="col-md-{% if field.name == 'address' %}12{% else %}6{% endif %}">
+              <label class="form-label fw-500 small">{{ field.label }}</label>
+              {{ field }}
+              {% if field.errors %}<div class="text-danger small">{{ field.errors.0 }}</div>{% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" name="add_member" class="btn btn-primary px-4">
+            <i class="bi bi-person-plus me-2"></i>Add Member
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

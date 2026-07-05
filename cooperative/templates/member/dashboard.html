@@ -1,0 +1,187 @@
+{% extends 'base.html' %}
+{% block title %}My Dashboard{% endblock %}
+{% block breadcrumb_parent %}Member Portal{% endblock %}
+{% block page_title %}My Dashboard{% endblock %}
+
+{% block content %}
+<!-- WELCOME BANNER -->
+<div class="welcome-banner mb-4">
+  <div class="welcome-text">
+    <h4 class="fw-700 mb-1">Welcome back, {{ request.user.first_name }}! 👋</h4>
+    <div class="text-muted small">Member ID: <code>{{ member.member_id }}</code> &nbsp;|&nbsp; Member since {{ member.join_date }}</div>
+  </div>
+  <div class="welcome-actions">
+    <a href="{% url 'member_loans' %}" class="btn btn-primary btn-sm"><i class="bi bi-credit-card me-1"></i>Apply for Loan</a>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card blue">
+      <div class="stat-icon"><i class="bi bi-piggy-bank-fill"></i></div>
+      <div class="stat-body">
+        <div class="stat-label">Savings Balance</div>
+        <div class="stat-value">₦{{ member.total_savings|floatformat:2 }}</div>
+        <div class="stat-sub text-success"><i class="bi bi-arrow-up-short"></i>Running balance</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card {% if member.outstanding_loan_balance > 0 %}orange{% else %}green{% endif %}">
+      <div class="stat-icon"><i class="bi bi-credit-card-fill"></i></div>
+      <div class="stat-body">
+        <div class="stat-label">Loan Balance</div>
+        <div class="stat-value">₦{{ member.outstanding_loan_balance|floatformat:2 }}</div>
+        <div class="stat-sub">{{ member.active_loans }} active loan{{ member.active_loans|pluralize }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card purple">
+      <div class="stat-icon"><i class="bi bi-calendar-check-fill"></i></div>
+      <div class="stat-body">
+        <div class="stat-label">Membership Duration</div>
+        <div class="stat-value">{{ member.months_as_member }}</div>
+        <div class="stat-sub">Months</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card {% if is_eligible %}green{% else %}red{% endif %}">
+      <div class="stat-icon"><i class="bi bi-{% if is_eligible %}check-circle-fill{% else %}x-circle-fill{% endif %}"></i></div>
+      <div class="stat-body">
+        <div class="stat-label">Loan Eligibility</div>
+        <div class="stat-value">{% if is_eligible %}Eligible{% else %}Not Yet{% endif %}</div>
+        <div class="stat-sub">Max: ₦{{ max_loan|floatformat:0 }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <!-- SAVINGS CHART -->
+  <div class="col-lg-7">
+    <div class="card-panel h-100">
+      <div class="panel-header">
+        <div><div class="panel-title">My Savings History</div><div class="panel-sub">Monthly contributions — last 6 months</div></div>
+        <a href="{% url 'member_savings' %}" class="btn btn-sm btn-outline-primary">View All</a>
+      </div>
+      <div class="panel-body"><canvas id="memberSavingsChart" height="220"></canvas></div>
+    </div>
+  </div>
+
+  <!-- ACTIVE LOAN CARD -->
+  <div class="col-lg-5">
+    {% if active_loan %}
+    <div class="card-panel h-100">
+      <div class="panel-header"><div class="panel-title"><i class="bi bi-credit-card me-2 text-warning"></i>Active Loan</div></div>
+      <div class="panel-body">
+        <div class="loan-summary-card">
+          <div class="row g-3 mb-3">
+            <div class="col-6"><div class="info-label">Loan ID</div><code class="text-primary">{{ active_loan.loan_id }}</code></div>
+            <div class="col-6"><div class="info-label">Status</div><span class="badge-status {{ active_loan.status }}">{{ active_loan.get_status_display }}</span></div>
+            <div class="col-6"><div class="info-label">Amount</div><div class="fw-700">₦{{ active_loan.amount_approved|default:active_loan.amount_requested|floatformat:2 }}</div></div>
+            <div class="col-6"><div class="info-label">Monthly EMI</div><div class="fw-700 text-success">₦{{ active_loan.monthly_emi|floatformat:2 }}</div></div>
+          </div>
+          <div class="mb-2 d-flex justify-content-between small">
+            <span>Repayment Progress</span><strong>{{ active_loan.repayment_percentage }}%</strong>
+          </div>
+          <div class="progress mb-3" style="height:10px;border-radius:8px">
+            <div class="progress-bar bg-success" style="width:{{ active_loan.repayment_percentage }}%;border-radius:8px"></div>
+          </div>
+          <div class="row g-2 text-center">
+            <div class="col-6"><div class="fw-600 text-success small">₦{{ active_loan.total_repaid|floatformat:2 }}</div><div class="text-muted" style="font-size:10px">Paid</div></div>
+            <div class="col-6"><div class="fw-600 text-danger small">₦{{ active_loan.outstanding_balance|floatformat:2 }}</div><div class="text-muted" style="font-size:10px">Remaining</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="card-panel h-100">
+      <div class="panel-body d-flex flex-column align-items-center justify-content-center text-center py-5">
+        <div class="empty-icon mb-3"><i class="bi bi-credit-card-2-front text-muted" style="font-size:3rem"></i></div>
+        <div class="fw-600 mb-1">No Active Loan</div>
+        <div class="text-muted small mb-4">You currently have no active loan applications.</div>
+        {% if is_eligible %}
+        <a href="{% url 'member_loans' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus me-1"></i>Apply for Loan</a>
+        {% else %}
+        <div class="alert alert-warning py-2 small">Keep saving to become eligible for a loan.</div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- RECENT TRANSACTIONS -->
+  <div class="col-lg-7">
+    <div class="card-panel">
+      <div class="panel-header">
+        <div class="panel-title">Recent Transactions</div>
+        <a href="{% url 'member_transactions' %}" class="btn btn-sm btn-ghost">View All <i class="bi bi-arrow-right ms-1"></i></a>
+      </div>
+      <div class="panel-body p-0">
+        <table class="table table-hover coop-table mb-0">
+          <thead><tr><th>Description</th><th>Type</th><th>Amount</th><th>Date</th></tr></thead>
+          <tbody>
+            {% for t in recent_transactions %}
+            <tr>
+              <td class="fw-500 small">{{ t.description }}</td>
+              <td class="text-muted small">{{ t.get_transaction_type_display }}</td>
+              <td class="fw-600 {% if 'deposit' in t.transaction_type or 'repayment' not in t.transaction_type %}text-success{% else %}text-danger{% endif %}">₦{{ t.amount|floatformat:2 }}</td>
+              <td class="text-muted small">{{ t.date|date:"d M Y" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="text-center text-muted py-4">No transactions yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- NOTIFICATIONS -->
+  <div class="col-lg-5">
+    <div class="card-panel">
+      <div class="panel-header">
+        <div class="panel-title">Notifications</div>
+        <a href="{% url 'member_notifications' %}" class="btn btn-sm btn-ghost">View All</a>
+      </div>
+      <div class="panel-body p-0">
+        {% for notif in notifications %}
+        <div class="notif-item">
+          <div class="notif-dot {% if not notif.is_read %}unread{% endif %}"></div>
+          <div class="notif-body">
+            <div class="notif-title fw-500 small">{{ notif.title }}</div>
+            <div class="notif-msg text-muted" style="font-size:12px">{{ notif.message|truncatechars:80 }}</div>
+            <div class="notif-time text-muted" style="font-size:11px">{{ notif.created_at|timesince }} ago</div>
+          </div>
+        </div>
+        {% empty %}
+        <div class="text-center text-muted py-4 small">No new notifications.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const savingsData = {{ savings_chart_json|safe }};
+new Chart(document.getElementById('memberSavingsChart'), {
+  type: 'bar',
+  data: {
+    labels: savingsData.map(d => d.month),
+    datasets: [{
+      label: 'Savings (₦)', data: savingsData.map(d => d.amount),
+      backgroundColor: 'rgba(37,99,235,0.8)', borderRadius: 6
+    }]
+  },
+  options: { responsive: true, plugins: { legend: { display: false } },
+    scales: { y: { ticks: { callback: v => '₦' + (v/1000).toFixed(0) + 'k' }, grid: { color: '#f3f4f6' } },
+              x: { grid: { display: false } } } }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,311 @@
+{% extends 'base.html' %}
+{% block title %}Admin Dashboard{% endblock %}
+{% block breadcrumb_parent %}Admin Panel{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="row g-4 mb-4">
+  <!-- STAT CARDS -->
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card blue">
+      <div class="stat-icon"><i class="bi bi-piggy-bank-fill"></i></div>
+      <div class="stat-body">
+        <div class="stat-label">Total Savings Pool</div>
+        <div class="stat-value">₦{{ net_savings|floatformat:2 }}</div>
+        <div class="stat-sub text-success"><i class="bi bi-arrow-up-short"></i> Net deposits</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card green">
+      <div class="stat-icon"><i class="bi bi-people-fill"></i></div>
+      <div class="stat-body">
+        <div class="stat-label">Total Members</div>
+        <div class="stat-value">{{ total_members }}</div>
+        <div class="stat-sub text-success"><i class="bi bi-person-check"></i> {{ active_members }} active</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card orange">
+      <div class="stat-icon"><i class="bi bi-credit-card-fill"></i></div>
+      <div class="stat-body">
+        <div class="stat-label">Total Loans Disbursed</div>
+        <div class="stat-value">₦{{ total_disbursed|floatformat:2 }}</div>
+        <div class="stat-sub">{{ active_loans_count }} active · {{ overdue_loans_count }} overdue</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card {% if pending_loans_count > 0 %}red{% else %}purple{% endif %}">
+      <div class="stat-icon"><i class="bi bi-hourglass-split"></i></div>
+      <div class="stat-body">
+        <div class="stat-label">Pending Loan Applications</div>
+        <div class="stat-value">{{ pending_loans_count }}</div>
+        <div class="stat-sub">Awaiting admin review</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- QUICK INFO BANNER -->
+{% if pending_loans_count > 0 %}
+<div class="alert alert-warning d-flex align-items-center gap-3 mb-4 py-3">
+  <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+  <div>
+    <strong>{{ pending_loans_count }} loan application{{ pending_loans_count|pluralize }}</strong> awaiting your review.
+    <a href="{% url 'admin_loans' %}?status=pending" class="alert-link ms-2">Review now →</a>
+  </div>
+</div>
+{% endif %}
+{% if not model_trained %}
+<div class="alert alert-info d-flex align-items-center gap-3 mb-4 py-3">
+  <i class="bi bi-cpu-fill fs-5"></i>
+  <div>
+    The ML prediction model has not been trained yet.
+    <a href="{% url 'admin_analytics' %}" class="alert-link ms-2">Train the model →</a>
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-4 mb-4">
+  <!-- SAVINGS TREND CHART -->
+  <div class="col-lg-8">
+    <div class="card-panel h-100">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">Savings Trend</div>
+          <div class="panel-sub">Monthly deposits — last 6 months</div>
+        </div>
+        <a href="{% url 'admin_reports' %}" class="btn btn-sm btn-outline-primary">View Reports</a>
+      </div>
+      <div class="panel-body">
+        <canvas id="savingsChart" height="240"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOAN STATUS DOUGHNUT -->
+  <div class="col-lg-4">
+    <div class="card-panel h-100">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">Loan Status</div>
+          <div class="panel-sub">Current distribution</div>
+        </div>
+      </div>
+      <div class="panel-body d-flex flex-column align-items-center">
+        <canvas id="loanPieChart" height="200" style="max-width:200px"></canvas>
+        <div class="legend-list mt-3 w-100">
+          <div class="legend-item"><span class="legend-dot" style="background:#2563EB"></span>Pending <span class="ms-auto fw-600">{{ pending_loans_count }}</span></div>
+          <div class="legend-item"><span class="legend-dot" style="background:#16A34A"></span>Active <span class="ms-auto fw-600">{{ active_loans_count }}</span></div>
+          <div class="legend-item"><span class="legend-dot" style="background:#DC2626"></span>Overdue <span class="ms-auto fw-600">{{ overdue_loans_count }}</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <!-- MEMBER GROWTH -->
+  <div class="col-lg-4">
+    <div class="card-panel h-100">
+      <div class="panel-header">
+        <div class="panel-title">Member Growth</div>
+      </div>
+      <div class="panel-body">
+        <canvas id="memberChart" height="200"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ML RISK DISTRIBUTION -->
+  <div class="col-lg-4">
+    <div class="card-panel h-100">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title"><i class="bi bi-cpu me-1 text-primary"></i>ML Risk Distribution</div>
+          <div class="panel-sub">Loan default predictions</div>
+        </div>
+        <a href="{% url 'admin_analytics' %}" class="btn btn-sm btn-outline-primary">View All</a>
+      </div>
+      <div class="panel-body">
+        <canvas id="riskChart" height="180"></canvas>
+        <div class="legend-list mt-3">
+          <div class="legend-item"><span class="legend-dot" style="background:#16A34A"></span>Low Risk <span class="ms-auto fw-600 text-success">{{ risk_dist_json|safe|slice:"2:-1"|truncatechars:3 }}</span></div>
+          <div class="legend-item"><span class="legend-dot" style="background:#D97706"></span>Medium Risk</div>
+          <div class="legend-item"><span class="legend-dot" style="background:#DC2626"></span>High Risk</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- QUICK ACTIONS -->
+  <div class="col-lg-4">
+    <div class="card-panel h-100">
+      <div class="panel-header"><div class="panel-title">Quick Actions</div></div>
+      <div class="panel-body">
+        <div class="quick-grid">
+          <a href="{% url 'admin_members' %}" class="quick-btn blue">
+            <i class="bi bi-person-plus-fill"></i><span>Add Member</span>
+          </a>
+          <a href="{% url 'admin_savings' %}" class="quick-btn green">
+            <i class="bi bi-plus-circle-fill"></i><span>Record Savings</span>
+          </a>
+          <a href="{% url 'admin_loans' %}?status=pending" class="quick-btn orange">
+            <i class="bi bi-check2-circle"></i><span>Review Loans</span>
+          </a>
+          <a href="{% url 'admin_analytics' %}" class="quick-btn purple">
+            <i class="bi bi-cpu-fill"></i><span>ML Analytics</span>
+          </a>
+          <a href="{% url 'admin_reports' %}" class="quick-btn teal">
+            <i class="bi bi-bar-chart-fill"></i><span>Reports</span>
+          </a>
+          <a href="{% url 'admin_settings' %}" class="quick-btn gray">
+            <i class="bi bi-gear-fill"></i><span>Settings</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- RECENT LOAN APPLICATIONS -->
+  <div class="col-lg-7">
+    <div class="card-panel">
+      <div class="panel-header">
+        <div class="panel-title">Recent Loan Applications</div>
+        <a href="{% url 'admin_loans' %}" class="btn btn-sm btn-ghost">View All <i class="bi bi-arrow-right ms-1"></i></a>
+      </div>
+      <div class="panel-body p-0">
+        <table class="table table-hover coop-table mb-0">
+          <thead>
+            <tr>
+              <th>Loan ID</th><th>Member</th><th>Amount</th><th>Status</th><th>Risk</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for loan in recent_loans %}
+            <tr>
+              <td><a href="{% url 'admin_loan_detail' loan.loan_id %}" class="text-primary fw-500">{{ loan.loan_id }}</a></td>
+              <td>
+                <div class="member-cell">
+                  <div class="avatar-sm">{{ loan.member.user.first_name|first }}{{ loan.member.user.last_name|first }}</div>
+                  <div>
+                    <div class="fw-500">{{ loan.member.full_name }}</div>
+                    <div class="text-muted small">{{ loan.member.member_id }}</div>
+                  </div>
+                </div>
+              </td>
+              <td class="fw-600">₦{{ loan.amount_requested|floatformat:2 }}</td>
+              <td>
+                <span class="badge-status {{ loan.status }}">{{ loan.get_status_display }}</span>
+              </td>
+              <td>
+                {% if loan.risk_score %}
+                <span class="badge-risk {{ loan.risk_score|lower }}">{{ loan.risk_score }}</span>
+                {% else %}
+                <span class="text-muted small">—</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center text-muted py-4">No loan applications yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- RECENT SAVINGS -->
+  <div class="col-lg-5">
+    <div class="card-panel">
+      <div class="panel-header">
+        <div class="panel-title">Recent Savings</div>
+        <a href="{% url 'admin_savings' %}" class="btn btn-sm btn-ghost">View All <i class="bi bi-arrow-right ms-1"></i></a>
+      </div>
+      <div class="panel-body p-0">
+        <table class="table table-hover coop-table mb-0">
+          <thead><tr><th>Member</th><th>Amount</th><th>Date</th></tr></thead>
+          <tbody>
+            {% for s in recent_savings %}
+            <tr>
+              <td>
+                <div class="fw-500">{{ s.member.full_name }}</div>
+                <div class="text-muted small">{{ s.member.member_id }}</div>
+              </td>
+              <td class="fw-600 text-success">+₦{{ s.amount|floatformat:2 }}</td>
+              <td class="text-muted small">{{ s.date }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3" class="text-center text-muted py-4">No savings records yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const savingsData = {{ savings_chart_json|safe }};
+const loanStats = {{ loan_stats_json|safe }};
+const riskData = {{ risk_dist_json|safe }};
+const memberData = {{ member_chart_json|safe }};
+
+// Savings Trend
+new Chart(document.getElementById('savingsChart'), {
+  type: 'line',
+  data: {
+    labels: savingsData.map(d => d.month),
+    datasets: [{
+      label: 'Monthly Savings (₦)',
+      data: savingsData.map(d => d.amount),
+      borderColor: '#2563EB', backgroundColor: 'rgba(37,99,235,0.08)',
+      fill: true, tension: 0.4, borderWidth: 2.5, pointRadius: 4,
+    }]
+  },
+  options: { responsive: true, plugins: { legend: { display: false } },
+    scales: { y: { ticks: { callback: v => '₦' + (v/1000).toFixed(0) + 'k' }, grid: { color: '#f3f4f6' } },
+              x: { grid: { display: false } } } }
+});
+
+// Loan Pie
+new Chart(document.getElementById('loanPieChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Pending', 'Active', 'Overdue', 'Repaid'],
+    datasets: [{ data: [loanStats.pending, loanStats.active, loanStats.overdue, loanStats.repaid || 0],
+      backgroundColor: ['#2563EB','#16A34A','#DC2626','#9CA3AF'], borderWidth: 0 }]
+  },
+  options: { responsive: true, cutout: '70%', plugins: { legend: { display: false } } }
+});
+
+// Member Growth Bar
+new Chart(document.getElementById('memberChart'), {
+  type: 'bar',
+  data: {
+    labels: memberData.map(d => d.month),
+    datasets: [{ label: 'New Members', data: memberData.map(d => d.count),
+      backgroundColor: '#16A34A', borderRadius: 6 }]
+  },
+  options: { responsive: true, plugins: { legend: { display: false } },
+    scales: { y: { ticks: { stepSize: 1 }, grid: { color: '#f3f4f6' } }, x: { grid: { display: false } } } }
+});
+
+// Risk Distribution
+new Chart(document.getElementById('riskChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Low', 'Medium', 'High'],
+    datasets: [{ data: [riskData.Low || 0, riskData.Medium || 0, riskData.High || 0],
+      backgroundColor: ['#16A34A','#D97706','#DC2626'], borderWidth: 0 }]
+  },
+  options: { responsive: true, cutout: '65%', plugins: { legend: { display: false } } }
+});
+</script>
+{% endblock %}

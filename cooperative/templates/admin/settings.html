@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% block title %}Settings{% endblock %}
+{% block breadcrumb_parent %}Admin Panel{% endblock %}
+{% block page_title %}System Settings{% endblock %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-8">
+    <div class="card-panel">
+      <div class="panel-header"><div class="panel-title">Cooperative Configuration</div></div>
+      <div class="panel-body">
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+          <div class="row g-3">
+            {% for field in form %}
+            <div class="col-md-{% if field.name in 'coop_address,coop_name' %}12{% else %}6{% endif %}">
+              <label class="form-label fw-500 small">{{ field.label }}</label>
+              {{ field }}
+              {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+              {% if field.errors %}<div class="text-danger small">{{ field.errors.0 }}</div>{% endif %}
+            </div>
+            {% endfor %}
+          </div>
+          <div class="mt-4">
+            <button type="submit" class="btn btn-primary px-5"><i class="bi bi-save me-2"></i>Save Settings</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card-panel mb-3">
+      <div class="panel-header"><div class="panel-title">Current Config</div></div>
+      <div class="panel-body">
+        <div class="summary-list">
+          <div class="summary-row"><span>Name</span><strong>{{ settings.coop_name }}</strong></div>
+          <div class="summary-row"><span>Monthly Contribution</span><strong>₦{{ settings.monthly_contribution_amount }}</strong></div>
+          <div class="summary-row"><span>Max Loan Multiplier</span><strong>×{{ settings.max_loan_multiplier }}</strong></div>
+          <div class="summary-row"><span>Default Interest Rate</span><strong>{{ settings.default_interest_rate }}% p.a.</strong></div>
+          <div class="summary-row"><span>Min Savings for Loan</span><strong>₦{{ settings.min_savings_for_loan }}</strong></div>
+          <div class="summary-row"><span>Min Months for Loan</span><strong>{{ settings.min_months_for_loan }} months</strong></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-panel">
+      <div class="panel-header"><div class="panel-title"><i class="bi bi-shield-lock me-2 text-success"></i>Security Status</div></div>
+      <div class="panel-body">
+        <div class="security-list">
+          <div class="sec-item"><i class="bi bi-check-circle-fill text-success"></i>CSRF Protection Enabled</div>
+          <div class="sec-item"><i class="bi bi-check-circle-fill text-success"></i>Password Hashing (PBKDF2)</div>
+          <div class="sec-item"><i class="bi bi-check-circle-fill text-success"></i>Role-based Access Control</div>
+          <div class="sec-item"><i class="bi bi-check-circle-fill text-success"></i>SQL Injection Protection (ORM)</div>
+          <div class="sec-item"><i class="bi bi-check-circle-fill text-success"></i>Session Management Active</div>
+          <div class="sec-item"><i class="bi bi-check-circle-fill text-success"></i>Input Validation (Forms)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

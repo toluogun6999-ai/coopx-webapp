@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}My Profile{% endblock %}
+{% block breadcrumb_parent %}Member Portal{% endblock %}
+{% block page_title %}My Profile{% endblock %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card-panel text-center mb-4">
+      <div class="panel-body py-4">
+        <div class="avatar-xl mx-auto mb-3">{{ request.user.first_name|first }}{{ request.user.last_name|first }}</div>
+        <h5 class="fw-700">{{ member.full_name }}</h5>
+        <code class="text-primary">{{ member.member_id }}</code>
+        <div class="mt-2"><span class="badge-status {{ member.status }}">{{ member.status|capfirst }}</span></div>
+        <div class="row g-2 mt-4 text-center">
+          <div class="col-6"><div class="fw-700 text-primary">₦{{ member.total_savings|floatformat:0 }}</div><div class="text-muted small">Savings</div></div>
+          <div class="col-6"><div class="fw-700 text-warning">{{ member.months_as_member }}</div><div class="text-muted small">Months</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-panel">
+      <div class="panel-header"><div class="panel-title">Account Info</div></div>
+      <div class="panel-body">
+        <div class="summary-list">
+          <div class="summary-row"><span>Username</span><strong>{{ request.user.username }}</strong></div>
+          <div class="summary-row"><span>Email</span><strong>{{ request.user.email }}</strong></div>
+          <div class="summary-row"><span>Joined</span><strong>{{ member.join_date }}</strong></div>
+          <div class="summary-row"><span>Employment</span><strong>{{ member.get_employment_type_display }}</strong></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card-panel">
+      <div class="panel-header"><div class="panel-title">Edit Profile</div></div>
+      <div class="panel-body">
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+          <div class="row g-3">
+            {% for field in form %}
+            <div class="col-md-{% if field.name == 'address' or field.name == 'profile_photo' %}12{% else %}6{% endif %}">
+              <label class="form-label fw-500 small">{{ field.label }}</label>
+              {{ field }}
+              {% if field.errors %}<div class="text-danger small">{{ field.errors.0 }}</div>{% endif %}
+            </div>
+            {% endfor %}
+          </div>
+          <div class="mt-4">
+            <button type="submit" class="btn btn-primary px-5"><i class="bi bi-save me-2"></i>Save Changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

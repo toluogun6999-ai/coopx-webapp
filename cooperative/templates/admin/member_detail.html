@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+{% block title %}{{ member.full_name }}{% endblock %}
+{% block breadcrumb_parent %}Members{% endblock %}
+{% block page_title %}{{ member.full_name }}{% endblock %}
+{% block content %}
+<div class="mb-3"><a href="{% url 'admin_members' %}" class="btn btn-sm btn-ghost"><i class="bi bi-arrow-left me-1"></i>Back</a></div>
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card-panel mb-4 text-center">
+      <div class="panel-body py-4">
+        <div class="avatar-xl mx-auto mb-3">{{ member.user.first_name|first }}{{ member.user.last_name|first }}</div>
+        <h5 class="fw-700 mb-1">{{ member.full_name }}</h5>
+        <div class="text-muted small mb-2">{{ member.user.email }}</div>
+        <code class="text-primary">{{ member.member_id }}</code>
+        <div class="mt-2"><span class="badge-status {{ member.status }}">{{ member.status|capfirst }}</span></div>
+        <div class="row g-2 mt-3 text-center">
+          <div class="col-6"><div class="fw-700 text-primary">₦{{ member.total_savings|floatformat:0 }}</div><div class="text-muted" style="font-size:11px">Savings</div></div>
+          <div class="col-6"><div class="fw-700 text-warning">{{ member.active_loans }}</div><div class="text-muted" style="font-size:11px">Active Loans</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-panel mb-4">
+      <div class="panel-header"><div class="panel-title">Update Status</div></div>
+      <div class="panel-body">
+        <form method="post">{% csrf_token %}
+          <select name="status" class="form-control mb-3">
+            <option value="active" {% if member.status == 'active' %}selected{% endif %}>Active</option>
+            <option value="inactive" {% if member.status == 'inactive' %}selected{% endif %}>Inactive</option>
+            <option value="suspended" {% if member.status == 'suspended' %}selected{% endif %}>Suspended</option>
+          </select>
+          <button type="submit" name="update_status" class="btn btn-primary w-100">Update</button>
+        </form>
+      </div>
+    </div>
+    <div class="card-panel">
+      <div class="panel-header"><div class="panel-title">Member Info</div></div>
+      <div class="panel-body">
+        <div class="summary-list">
+          <div class="summary-row"><span>Phone</span><strong>{{ member.phone }}</strong></div>
+          <div class="summary-row"><span>Gender</span><strong>{{ member.get_gender_display }}</strong></div>
+          <div class="summary-row"><span>Occupation</span><strong>{{ member.occupation|default:"—" }}</strong></div>
+          <div class="summary-row"><span>Income</span><strong>₦{{ member.monthly_income|floatformat:0 }}</strong></div>
+          <div class="summary-row"><span>Joined</span><strong>{{ member.join_date }}</strong></div>
+          <div class="summary-row"><span>Membership</span><strong>{{ member.months_as_member }} months</strong></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <!-- Loans -->
+    <div class="card-panel mb-4">
+      <div class="panel-header"><div class="panel-title">Loan History</div></div>
+      <div class="panel-body p-0">
+        <table class="table coop-table mb-0">
+          <thead><tr><th>Loan ID</th><th>Amount</th><th>Status</th><th>Risk</th><th>Date</th><th></th></tr></thead>
+          <tbody>
+            {% for l in loans %}
+            <tr>
+              <td><code class="text-primary small">{{ l.loan_id }}</code></td>
+              <td class="fw-600">₦{{ l.amount_requested|floatformat:2 }}</td>
+              <td><span class="badge-status {{ l.status }}">{{ l.get_status_display }}</span></td>
+              <td>{% if l.risk_score %}<span class="badge-risk {{ l.risk_score|lower }}">{{ l.risk_score }}</span>{% else %}—{% endif %}</td>
+              <td class="text-muted small">{{ l.application_date }}</td>
+              <td><a href="{% url 'admin_loan_detail' l.loan_id %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i></a></td>
+            </tr>
+            {% empty %}<tr><td colspan="6" class="text-center text-muted py-3">No loans.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <!-- Recent Savings -->
+    <div class="card-panel mb-4">
+      <div class="panel-header"><div class="panel-title">Recent Savings</div></div>
+      <div class="panel-body p-0">
+        <table class="table coop-table mb-0">
+          <thead><tr><th>ID</th><th>Type</th><th>Amount</th><th>Balance</th><th>Date</th></tr></thead>
+          <tbody>
+            {% for s in savings %}
+            <tr>
+              <td class="text-muted small">{{ s.transaction_id }}</td>
+              <td><span class="badge-status {% if s.transaction_type == 'deposit' %}active{% else %}overdue{% endif %}">{{ s.get_transaction_type_display }}</span></td>
+              <td class="fw-600 {% if s.transaction_type == 'deposit' %}text-success{% else %}text-danger{% endif %}">{% if s.transaction_type == 'deposit' %}+{% else %}-{% endif %}₦{{ s.amount|floatformat:2 }}</td>
+              <td class="text-primary fw-500">₦{{ s.balance_after|floatformat:2 }}</td>
+              <td class="text-muted small">{{ s.date }}</td>
+            </tr>
+            {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">No savings records.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <!-- Predictions -->
+    {% if predictions %}
+    <div class="card-panel">
+      <div class="panel-header"><div class="panel-title"><i class="bi bi-cpu me-2 text-primary"></i>ML Predictions</div></div>
+      <div class="panel-body p-0">
+        <table class="table coop-table mb-0">
+          <thead><tr><th>Risk Level</th><th>Default Prob.</th><th>Algorithm</th><th>Date</th></tr></thead>
+          <tbody>
+            {% for p in predictions %}
+            <tr>
+              <td><span class="badge-risk {{ p.risk_level|lower }}">{{ p.risk_level }}</span></td>
+              <td class="fw-600 {% if p.default_probability > 0.66 %}text-danger{% elif p.default_probability > 0.33 %}text-warning{% else %}text-success{% endif %}">{{ p.default_probability|floatformat:1 }}%</td>
+              <td class="text-muted small">{{ p.get_algorithm_used_display }}</td>
+              <td class="text-muted small">{{ p.prediction_date|date:"d M Y" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

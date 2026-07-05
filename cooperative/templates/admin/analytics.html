@@ -1,0 +1,201 @@
+{% extends 'base.html' %}
+{% block title %}ML Analytics{% endblock %}
+{% block breadcrumb_parent %}Admin Panel{% endblock %}
+{% block page_title %}ML Analytics & Insights{% endblock %}
+
+{% block content %}
+<!-- MODEL STATUS BANNER -->
+<div class="card-panel mb-4 {% if model_trained %}border-success{% else %}border-warning{% endif %} border-2">
+  <div class="panel-body">
+    <div class="row align-items-center g-3">
+      <div class="col-auto">
+        <div class="avatar-lg bg-primary-subtle text-primary">
+          <i class="bi bi-cpu-fill fs-4"></i>
+        </div>
+      </div>
+      <div class="col">
+        <div class="fw-700 fs-5">Random Forest Classifier</div>
+        <div class="text-muted small">Loan default prediction model — trained on cooperative member financial behavior data</div>
+        {% if metrics %}
+        <div class="mt-1 text-muted small">Trained: {{ metrics.trained_at|slice:":10" }} &nbsp;|&nbsp; Samples: {{ metrics.n_samples }} &nbsp;|&nbsp; Algorithm: {{ metrics.algorithm }}</div>
+        {% endif %}
+      </div>
+      <div class="col-auto d-flex gap-2">
+        {% if model_trained %}<span class="badge bg-success px-3 py-2 fs-13"><i class="bi bi-check-circle me-1"></i>Model Active</span>{% endif %}
+        <form method="post">
+          {% csrf_token %}
+          <button type="submit" name="train_model" class="btn btn-primary">
+            <i class="bi bi-arrow-repeat me-2"></i>{% if model_trained %}Retrain{% else %}Train Model{% endif %}
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if metrics %}
+<!-- PERFORMANCE METRICS -->
+<div class="row g-3 mb-4">
+  {% for label, val in metrics.items %}
+  {% if label in 'accuracy,precision,recall,f1_score,cv_mean' %}
+  <div class="col-6 col-md-4 col-xl">
+    <div class="card-panel text-center py-3">
+      <div class="fw-800 fs-3 text-primary">{{ val }}{% if val < 2 %}{% else %}%{% endif %}</div>
+      <div class="text-muted small mt-1">
+        {% if label == 'accuracy' %}Accuracy{% elif label == 'precision' %}Precision{% elif label == 'recall' %}Recall{% elif label == 'f1_score' %}F1-Score{% elif label == 'cv_mean' %}CV Mean{% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  {% endfor %}
+</div>
+
+<div class="row g-4 mb-4">
+  <!-- FEATURE IMPORTANCE -->
+  <div class="col-lg-6">
+    <div class="card-panel h-100">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">Feature Importance</div>
+          <div class="panel-sub">Top predictors from Random Forest model</div>
+        </div>
+      </div>
+      <div class="panel-body">
+        {% for fname, fval in metrics.feature_importances.items %}
+        <div class="mb-3">
+          <div class="d-flex justify-content-between mb-1">
+            <span class="small fw-500">{{ metrics.feature_labels|default:fname }}</span>
+            <span class="small fw-700 text-primary">{{ fval|floatformat:1 }}%</span>
+          </div>
+          <div class="progress" style="height:8px;border-radius:6px">
+            <div class="progress-bar" style="width:{% widthratio fval 0.3 100 %}%;border-radius:6px;background:linear-gradient(90deg,#2563EB,#60A5FA)"></div>
+          </div>
+        </div>
+        {% endfor %}
+        <canvas id="fiChart" height="220" class="mt-3"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- RISK DISTRIBUTION PIE -->
+  <div class="col-lg-6">
+    <div class="card-panel h-100">
+      <div class="panel-header"><div class="panel-title">Risk Distribution</div></div>
+      <div class="panel-body">
+        <div class="row g-3 mb-4">
+          <div class="col-4 text-center">
+            <div class="risk-mini-card green">
+              <div class="risk-num">{{ risk_summary.Low }}</div>
+              <div class="risk-label">Low Risk</div>
+            </div>
+          </div>
+          <div class="col-4 text-center">
+            <div class="risk-mini-card orange">
+              <div class="risk-num">{{ risk_summary.Medium }}</div>
+              <div class="risk-label">Medium Risk</div>
+            </div>
+          </div>
+          <div class="col-4 text-center">
+            <div class="risk-mini-card red">
+              <div class="risk-num">{{ risk_summary.High }}</div>
+              <div class="risk-label">High Risk</div>
+            </div>
+          </div>
+        </div>
+        <canvas id="riskPieChart" height="200"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- PREDICTION TREND -->
+<div class="card-panel mb-4">
+  <div class="panel-header"><div class="panel-title">Prediction Activity</div><div class="panel-sub">Monthly ML predictions run</div></div>
+  <div class="panel-body"><canvas id="trendChart" height="120"></canvas></div>
+</div>
+
+<!-- RECENT PREDICTIONS TABLE -->
+<div class="card-panel">
+  <div class="panel-header"><div class="panel-title">Recent Predictions</div></div>
+  <div class="panel-body p-0">
+    <table class="table table-hover coop-table mb-0">
+      <thead>
+        <tr><th>Member</th><th>Loan</th><th>Risk Level</th><th>Default Prob.</th><th>Algorithm</th><th>Date</th></tr>
+      </thead>
+      <tbody>
+        {% for p in predictions %}
+        <tr>
+          <td>
+            <div class="fw-500">{{ p.member.full_name }}</div>
+            <div class="text-muted small">{{ p.member.member_id }}</div>
+          </td>
+          <td><code class="small text-muted">{{ p.loan.loan_id|default:"—" }}</code></td>
+          <td><span class="badge-risk {{ p.risk_level|lower }}">{{ p.risk_level }}</span></td>
+          <td>
+            <div class="fw-600 {% if p.default_probability > 0.66 %}text-danger{% elif p.default_probability > 0.33 %}text-warning{% else %}text-success{% endif %}">
+              {{ p.default_probability|floatformat:1 }}%
+            </div>
+          </td>
+          <td class="text-muted small">{{ p.get_algorithm_used_display }}</td>
+          <td class="text-muted small">{{ p.prediction_date|date:"d M Y H:i" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="text-center text-muted py-5">
+          No predictions yet. Predictions are generated automatically when loans are reviewed.
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const fiData = {{ fi_json|safe }};
+const riskData = {{ risk_json|safe }};
+const trendData = {{ trend_json|safe }};
+
+// Feature Importance Bar
+const fiLabels = Object.keys(fiData).map(k => k.replace(/_/g,' '));
+const fiVals = Object.values(fiData).map(v => (v * 100).toFixed(1));
+new Chart(document.getElementById('fiChart'), {
+  type: 'bar',
+  data: {
+    labels: fiLabels,
+    datasets: [{ label: 'Importance (%)', data: fiVals,
+      backgroundColor: 'rgba(37,99,235,0.75)', borderRadius: 5 }]
+  },
+  options: { indexAxis: 'y', responsive: true,
+    plugins: { legend: { display: false } },
+    scales: { x: { ticks: { callback: v => v + '%' } }, y: { grid: { display: false } } } }
+});
+
+// Risk Pie
+new Chart(document.getElementById('riskPieChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Low', 'Medium', 'High'],
+    datasets: [{ data: [riskData.Low || 0, riskData.Medium || 0, riskData.High || 0],
+      backgroundColor: ['#16A34A','#D97706','#DC2626'], borderWidth: 0 }]
+  },
+  options: { responsive: true, cutout: '65%',
+    plugins: { legend: { position: 'bottom' } } }
+});
+
+// Trend Line
+new Chart(document.getElementById('trendChart'), {
+  type: 'line',
+  data: {
+    labels: trendData.map(d => d.month),
+    datasets: [{ label: 'Predictions', data: trendData.map(d => d.count),
+      borderColor: '#7C3AED', backgroundColor: 'rgba(124,58,237,0.08)',
+      fill: true, tension: 0.4, borderWidth: 2, pointRadius: 4 }]
+  },
+  options: { responsive: true, plugins: { legend: { display: false } },
+    scales: { y: { ticks: { stepSize: 1 }, grid: { color: '#f3f4f6' } },
+              x: { grid: { display: false } } } }
+});
+</script>
+{% endblock %}

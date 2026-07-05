@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}Notifications{% endblock %}
+{% block breadcrumb_parent %}Member Portal{% endblock %}
+{% block page_title %}Notifications{% endblock %}
+{% block content %}
+<div class="card-panel">
+  <div class="panel-header"><div class="panel-title">All Notifications</div></div>
+  <div class="panel-body p-0">
+    {% for notif in page_notifs %}
+    <div class="notif-row {% if not notif.is_read %}unread{% endif %}">
+      <div class="notif-icon {{ notif.notification_type }}">
+        <i class="bi bi-{% if 'loan' in notif.notification_type %}credit-card{% elif 'savings' in notif.notification_type %}piggy-bank{% elif 'risk' in notif.notification_type %}cpu{% else %}bell{% endif %}"></i>
+      </div>
+      <div class="notif-content">
+        <div class="notif-title fw-600">{{ notif.title }}</div>
+        <div class="notif-message text-muted small">{{ notif.message }}</div>
+        <div class="notif-time text-muted" style="font-size:11px">{{ notif.created_at|timesince }} ago</div>
+      </div>
+      {% if not notif.is_read %}<span class="badge bg-primary ms-auto" style="font-size:10px">New</span>{% endif %}
+    </div>
+    {% empty %}
+    <div class="text-center text-muted py-6">
+      <i class="bi bi-bell-slash fs-1 d-block mb-3"></i>
+      No notifications yet.
+    </div>
+    {% endfor %}
+  </div>
+  {% if page_notifs.has_other_pages %}
+  <div class="panel-footer d-flex justify-content-center py-3">
+    <nav><ul class="pagination pagination-sm mb-0">
+      {% if page_notifs.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ page_notifs.previous_page_number }}">‹</a></li>{% endif %}
+      {% for n in page_notifs.paginator.page_range %}<li class="page-item {% if page_notifs.number == n %}active{% endif %}"><a class="page-link" href="?page={{ n }}">{{ n }}</a></li>{% endfor %}
+      {% if page_notifs.has_next %}<li class="page-item"><a class="page-link" href="?page={{ page_notifs.next_page_number }}">›</a></li>{% endif %}
+    </ul></nav>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
