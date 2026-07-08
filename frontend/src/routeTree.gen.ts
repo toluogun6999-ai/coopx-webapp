@@ -22,6 +22,7 @@ import { Route as PortalSavingsRouteImport } from './routes/portal/savings'
 import { Route as PortalProfileRouteImport } from './routes/portal/profile'
 import { Route as PortalNotificationsRouteImport } from './routes/portal/notifications'
 import { Route as PortalLoansRouteImport } from './routes/portal/loans'
+import { Route as PortalBankRouteImport } from './routes/portal/bank'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
 import { Route as AdminSavingsRouteImport } from './routes/admin/savings'
 import { Route as AdminReportsRouteImport } from './routes/admin/reports'
@@ -97,6 +98,11 @@ const PortalLoansRoute = PortalLoansRouteImport.update({
   path: '/loans',
   getParentRoute: () => PortalRoute,
 } as any)
+const PortalBankRoute = PortalBankRouteImport.update({
+  id: '/bank',
+  path: '/bank',
+  getParentRoute: () => PortalRoute,
+} as any)
 const AdminSettingsRoute = AdminSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -160,6 +166,7 @@ export interface FileRoutesByFullPath {
   '/admin/reports': typeof AdminReportsRoute
   '/admin/savings': typeof AdminSavingsRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/portal/bank': typeof PortalBankRoute
   '/portal/loans': typeof PortalLoansRoute
   '/portal/notifications': typeof PortalNotificationsRoute
   '/portal/profile': typeof PortalProfileRoute
@@ -182,6 +189,7 @@ export interface FileRoutesByTo {
   '/admin/reports': typeof AdminReportsRoute
   '/admin/savings': typeof AdminSavingsRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/portal/bank': typeof PortalBankRoute
   '/portal/loans': typeof PortalLoansRoute
   '/portal/notifications': typeof PortalNotificationsRoute
   '/portal/profile': typeof PortalProfileRoute
@@ -207,6 +215,7 @@ export interface FileRoutesById {
   '/admin/reports': typeof AdminReportsRoute
   '/admin/savings': typeof AdminSavingsRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/portal/bank': typeof PortalBankRoute
   '/portal/loans': typeof PortalLoansRoute
   '/portal/notifications': typeof PortalNotificationsRoute
   '/portal/profile': typeof PortalProfileRoute
@@ -233,6 +242,7 @@ export interface FileRouteTypes {
     | '/admin/reports'
     | '/admin/savings'
     | '/admin/settings'
+    | '/portal/bank'
     | '/portal/loans'
     | '/portal/notifications'
     | '/portal/profile'
@@ -255,6 +265,7 @@ export interface FileRouteTypes {
     | '/admin/reports'
     | '/admin/savings'
     | '/admin/settings'
+    | '/portal/bank'
     | '/portal/loans'
     | '/portal/notifications'
     | '/portal/profile'
@@ -279,6 +290,7 @@ export interface FileRouteTypes {
     | '/admin/reports'
     | '/admin/savings'
     | '/admin/settings'
+    | '/portal/bank'
     | '/portal/loans'
     | '/portal/notifications'
     | '/portal/profile'
@@ -390,6 +402,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PortalLoansRouteImport
       parentRoute: typeof PortalRoute
     }
+    '/portal/bank': {
+      id: '/portal/bank'
+      path: '/bank'
+      fullPath: '/portal/bank'
+      preLoaderRoute: typeof PortalBankRouteImport
+      parentRoute: typeof PortalRoute
+    }
     '/admin/settings': {
       id: '/admin/settings'
       path: '/settings'
@@ -485,6 +504,7 @@ const AdminRouteChildren: AdminRouteChildren = {
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
 interface PortalRouteChildren {
+  PortalBankRoute: typeof PortalBankRoute
   PortalLoansRoute: typeof PortalLoansRoute
   PortalNotificationsRoute: typeof PortalNotificationsRoute
   PortalProfileRoute: typeof PortalProfileRoute
@@ -493,6 +513,7 @@ interface PortalRouteChildren {
 }
 
 const PortalRouteChildren: PortalRouteChildren = {
+  PortalBankRoute: PortalBankRoute,
   PortalLoansRoute: PortalLoansRoute,
   PortalNotificationsRoute: PortalNotificationsRoute,
   PortalProfileRoute: PortalProfileRoute,

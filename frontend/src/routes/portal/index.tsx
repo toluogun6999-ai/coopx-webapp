@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
@@ -64,7 +65,11 @@ function PortalHome() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs uppercase tracking-wide text-muted-foreground">Savings balance</p>
-              <p className="mt-2 text-2xl font-semibold">{fmt(aggQ.data?.savings ?? 0)}</p>
+              {aggQ.isLoading ? (
+                <Skeleton className="mt-2 h-8 w-28" />
+              ) : (
+                <p className="mt-2 text-2xl font-semibold">{fmt(aggQ.data?.savings ?? 0)}</p>
+              )}
             </div>
             <div className="grid h-9 w-9 place-items-center rounded-lg bg-primary/10 text-primary">
               <Wallet className="h-4 w-4" />
@@ -79,9 +84,13 @@ function PortalHome() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs uppercase tracking-wide text-muted-foreground">Active loan</p>
-              <p className="mt-2 text-2xl font-semibold">
-                {activeLoan ? fmt(Number(activeLoan.amount) - Number(activeLoan.paid)) : "—"}
-              </p>
+              {loansQ.isLoading ? (
+                <Skeleton className="mt-2 h-8 w-28" />
+              ) : (
+                <p className="mt-2 text-2xl font-semibold">
+                  {activeLoan ? fmt(Number(activeLoan.amount) - Number(activeLoan.paid)) : "—"}
+                </p>
+              )}
             </div>
             <div className="grid h-9 w-9 place-items-center rounded-lg bg-primary/10 text-primary">
               <Banknote className="h-4 w-4" />
@@ -96,9 +105,13 @@ function PortalHome() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs uppercase tracking-wide text-muted-foreground">Loan eligibility</p>
-              <p className="mt-2 text-2xl font-semibold capitalize">
-                {!risk ? "—" : risk.level === "Low" ? "Eligible" : risk.level === "Medium" ? "Review" : "Limited"}
-              </p>
+              {!member ? (
+                <Skeleton className="mt-2 h-8 w-24" />
+              ) : (
+                <p className="mt-2 text-2xl font-semibold capitalize">
+                  {!risk ? "—" : risk.level === "Low" ? "Eligible" : risk.level === "Medium" ? "Review" : "Limited"}
+                </p>
+              )}
             </div>
             {risk && (
               <Badge variant={risk.level === "Low" ? "secondary" : risk.level === "High" ? "destructive" : "outline"} className="gap-1">

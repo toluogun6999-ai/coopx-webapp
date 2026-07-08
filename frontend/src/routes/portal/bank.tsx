@@ -15,6 +15,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2, Plus, Landmark, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
@@ -142,7 +143,11 @@ function BankPage() {
         <Card>
           <CardContent className="pt-6">
             <p className="text-xs uppercase text-muted-foreground">Available balance</p>
-            <p className="mt-2 text-2xl font-semibold">{fmt(aggQ.data?.savings ?? 0)}</p>
+            {aggQ.isLoading ? (
+              <Skeleton className="mt-2 h-8 w-28" />
+            ) : (
+              <p className="mt-2 text-2xl font-semibold">{fmt(aggQ.data?.savings ?? 0)}</p>
+            )}
           </CardContent>
         </Card>
         <Card>
