@@ -317,6 +317,28 @@ class MLPrediction(models.Model):
         return f"{self.member.full_name} — {self.risk_level} ({self.default_probability:.2%})"
 
 
+# ─── EXCHANGE RATES ────────────────────────────────────────────────────────────
+
+class ExchangeRate(models.Model):
+    """Admin-configured conversion rate from a foreign currency to Naira.
+    Used to convert a member's deposit (entered in their preferred currency)
+    into the Naira amount actually charged and recorded in the ledger."""
+
+    currency_code = models.CharField(max_length=3, unique=True, help_text="ISO code, e.g. USD, GBP, EUR")
+    currency_name = models.CharField(max_length=50)
+    rate_to_ngn = models.DecimalField(max_digits=12, decimal_places=4,
+                                      help_text="1 unit of this currency = this many Naira")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['currency_code']
+        verbose_name = 'Exchange Rate'
+        verbose_name_plural = 'Exchange Rates'
+
+    def __str__(self):
+        return f"1 {self.currency_code} = ₦{self.rate_to_ngn}"
+
+
 # ─── BANK ACCOUNTS (Paystack) ─────────────────────────────────────────────────
 
 class BankAccount(models.Model):
@@ -377,6 +399,9 @@ class Transaction(models.Model):
     reference_id = models.CharField(max_length=30, blank=True, help_text="Loan ID / Savings ID etc")
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='success')
     paystack_reference = models.CharField(max_length=100, blank=True, unique=False, db_index=True)
+    currency = models.CharField(max_length=3, default='NGN', help_text="Currency the member entered")
+    amount_original = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True,
+                                          help_text="Amount in `currency` before conversion to Naira")
     bank_account = models.ForeignKey(BankAccount, on_delete=models.SET_NULL, null=True, blank=True,
                                      related_name='transactions')
     performed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)

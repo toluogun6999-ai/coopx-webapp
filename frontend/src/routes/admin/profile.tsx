@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Loader2, ShieldCheck, Clock, Mail, Phone } from "lucide-react";
 import { useAuth, ROLE_LABELS } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/integrations/django/client";
 
 export const Route = createFileRoute("/admin/profile")({
   head: () => ({ meta: [{ title: "Admin profile · CoopX" }] }),
@@ -24,7 +25,7 @@ const profileSchema = z.object({
 
 const passwordSchema = z
   .object({
-    next: z.string().min(8, "Use at least 8 characters").max(72),
+    next: z.string().min(10, "Use at least 10 characters").max(72),
     confirm: z.string(),
   })
   .refine((v) => v.next === v.confirm, {
@@ -64,10 +65,10 @@ function AdminProfilePage() {
       return;
     }
     setSavingProfile(true);
-    const { error } = await supabase
-      .from("profiles")
-      .update({ full_name: parsed.data.full_name, phone: parsed.data.phone || null })
-      .eq("id", user.id);
+    const { error } = await api.request("/profiles/me/", {
+      method: "PATCH",
+      body: JSON.stringify({ full_name: parsed.data.full_name, phone: parsed.data.phone || "" }),
+    });
     setSavingProfile(false);
     if (error) toast.error(error.message);
     else toast.success("Profile updated");
@@ -75,24 +76,21 @@ function AdminProfilePage() {
 
   const changePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user?.email) return;
+    if (!currentPwd) {
+      toast.error("Enter your current password");
+      return;
+    }
     const parsed = passwordSchema.safeParse({ next: nextPwd, confirm: confirmPwd });
     if (!parsed.success) {
       toast.error(parsed.error.issues[0].message);
       return;
     }
     setSavingPwd(true);
-    // Re-authenticate to confirm the current password
-    const { error: reauthError } = await supabase.auth.signInWithPassword({
-      email: user.email,
-      password: currentPwd,
+    // The backend verifies currentPassword before applying the change.
+    const { error } = await supabase.auth.updateUser({
+      password: parsed.data.next,
+      currentPassword: currentPwd,
     });
-    if (reauthError) {
-      setSavingPwd(false);
-      toast.error("Current password is incorrect");
-      return;
-    }
-    const { error } = await supabase.auth.updateUser({ password: parsed.data.next });
     setSavingPwd(false);
     if (error) {
       toast.error(error.message);

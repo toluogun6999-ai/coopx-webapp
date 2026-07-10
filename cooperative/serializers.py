@@ -10,7 +10,7 @@ from django.contrib.auth.models import User
 from decimal import Decimal
 from .models import (
     Member, Savings, Loan, Repayment, Contribution,
-    Transaction, Notification, MLPrediction, CoopSettings, BankAccount
+    Transaction, Notification, MLPrediction, CoopSettings, BankAccount, ExchangeRate
 )
 
 
@@ -235,6 +235,14 @@ class SettingsSerializer(serializers.ModelSerializer):
             "default_interest_rate", "late_payment_penalty_rate",
             "min_savings_for_loan", "min_months_for_loan",
         ]
+
+
+# ─── EXCHANGE RATE ───────────────────────────────────────────────────────────
+
+class ExchangeRateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ExchangeRate
+        fields = ["id", "currency_code", "currency_name", "rate_to_ngn", "updated_at"]
 
 
 # ─── BANK ACCOUNT ────────────────────────────────────────────────────────────

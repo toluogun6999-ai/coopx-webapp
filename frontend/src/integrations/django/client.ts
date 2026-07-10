@@ -85,8 +85,8 @@ class QueryBuilder {
   private orderCol: string | null = null;
   private orderAsc = true;
   private limitN: number | null = null;
-  private single = false;
-  private maybeSingle = false;
+  private _single = false;
+  private _maybeSingle = false;
 
   constructor(table: string) {
     this.table = table;
@@ -100,10 +100,10 @@ class QueryBuilder {
     return this;
   }
   limit(n: number) { this.limitN = n; return this; }
-  singleRow() { this.single = true; return this; }
-  maybeSingleRow() { this.maybeSingle = true; return this; }
-  single() { this.single = true; return this._run(); }
-  maybeSingle() { this.maybeSingle = true; return this._run(); }
+  singleRow() { this._single = true; return this; }
+  maybeSingleRow() { this._maybeSingle = true; return this; }
+  single() { this._single = true; return this._run(); }
+  maybeSingle() { this._maybeSingle = true; return this._run(); }
 
   private async _run() {
     const endpoint = TABLE_ENDPOINTS[this.table] || `/${this.table}/`;
@@ -128,7 +128,7 @@ class QueryBuilder {
     }
     if (this.limitN != null) rows = rows.slice(0, this.limitN);
 
-    if (this.single || this.maybeSingle) {
+    if (this._single || this._maybeSingle) {
       return { data: rows[0] ?? null, error: null };
     }
     return { data: rows, error: null };
@@ -256,11 +256,11 @@ const auth = {
     return { data: { session: tokens }, error: null };
   },
 
-  async updateUser(attrs: { password?: string; email?: string }) {
+  async updateUser(attrs: { password?: string; currentPassword?: string; email?: string }) {
     if (attrs.password) {
       const { data, error } = await request<any>("/auth/update-password/", {
         method: "POST",
-        body: JSON.stringify({ password: attrs.password }),
+        body: JSON.stringify({ password: attrs.password, current_password: attrs.currentPassword }),
       });
       if (data?.token) setToken(data.token);
       return { data: { user: null }, error };

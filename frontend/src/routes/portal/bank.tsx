@@ -33,9 +33,16 @@ interface BankAccount {
   id: number; bank_code: string; bank_name: string; account_number: string;
   account_name: string; is_verified: boolean; is_default: boolean;
 }
+interface ExchangeRate { currency_code: string; currency_name: string; rate_to_ngn: number }
 
 async function listBanks(): Promise<Bank[]> {
   const { data, error } = await api.request<Bank[]>("/banks/");
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+async function listExchangeRates(): Promise<ExchangeRate[]> {
+  const { data, error } = await api.request<ExchangeRate[]>("/exchange-rates/");
   if (error) throw new Error(error.message);
   return data ?? [];
 }
@@ -54,6 +61,7 @@ function BankPage() {
   const banksQ = useQuery({ queryKey: ["banks"], queryFn: listBanks });
   const accountsQ = useQuery({ queryKey: ["bank-accounts"], queryFn: listAccounts });
   const aggQ = useQuery({ queryKey: ["my-agg", userId], queryFn: () => memberAggregate(userId) });
+  const ratesQ = useQuery({ queryKey: ["exchange-rates"], queryFn: listExchangeRates });
 
   // ── Link bank account ──
   const [linkOpen, setLinkOpen] = useState(false);
@@ -83,12 +91,16 @@ function BankPage() {
   // ── Deposit ──
   const [depositOpen, setDepositOpen] = useState(false);
   const [depositAmount, setDepositAmount] = useState(5000);
+  const [depositCurrency, setDepositCurrency] = useState("NGN");
+
+  const currencyRate = ratesQ.data?.find((r) => r.currency_code === depositCurrency)?.rate_to_ngn;
+  const convertedNgn = depositCurrency === "NGN" ? depositAmount : depositAmount * (currencyRate ?? 0);
 
   const deposit = useMutation({
     mutationFn: async () => {
       const { data, error } = await api.request<any>("/deposits/initialize/", {
         method: "POST",
-        body: JSON.stringify({ amount: depositAmount }),
+        body: JSON.stringify({ amount: depositAmount, currency: depositCurrency }),
       });
       if (error) throw new Error(error.message);
       return data;
@@ -159,17 +171,44 @@ function BankPage() {
               <DialogContent>
                 <DialogHeader><DialogTitle>Deposit funds</DialogTitle></DialogHeader>
                 <div className="space-y-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="da">Amount (₦)</Label>
-                    <Input id="da" type="number" min={100} value={depositAmount}
-                      onChange={(e) => setDepositAmount(Number(e.target.value))} />
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="col-span-2 space-y-2">
+                      <Label htmlFor="da">Amount</Label>
+                      <Input id="da" type="number" min={1} value={depositAmount}
+                        onChange={(e) => setDepositAmount(Number(e.target.value))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Currency</Label>
+                      <Select value={depositCurrency} onValueChange={setDepositCurrency}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="NGN">NGN</SelectItem>
+                          {(ratesQ.data ?? []).map((r) => (
+                            <SelectItem key={r.currency_code} value={r.currency_code}>{r.currency_code}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
+                  {depositCurrency !== "NGN" && (
+                    <p className="text-xs text-muted-foreground">
+                      {currencyRate
+                        ? `≈ ${fmt(convertedNgn)} at 1 ${depositCurrency} = ₦${currencyRate}`
+                        : "This currency has no exchange rate configured — ask an admin to add one in Settings."}
+                    </p>
+                  )}
                   <p className="text-xs text-muted-foreground">
                     You'll be redirected to Paystack to complete this deposit securely.
                   </p>
                 </div>
                 <DialogFooter>
-                  <Button onClick={() => deposit.mutate()} disabled={deposit.isPending || depositAmount <= 0}>
+                  <Button
+                    onClick={() => deposit.mutate()}
+                    disabled={
+                      deposit.isPending || depositAmount <= 0 ||
+                      (depositCurrency !== "NGN" && !currencyRate)
+                    }
+                  >
                     {deposit.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Continue to Paystack
                   </Button>

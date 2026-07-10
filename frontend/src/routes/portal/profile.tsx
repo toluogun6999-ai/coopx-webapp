@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/integrations/django/client";
 import { useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/portal/profile")({
@@ -26,6 +26,11 @@ function ProfilePage() {
   const [phone, setPhone] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
+
   useEffect(() => {
     if (profile) {
       setFullName(profile.full_name ?? "");
@@ -41,13 +46,39 @@ function ProfilePage() {
       return;
     }
     setSaving(true);
-    const { error } = await supabase
-      .from("profiles")
-      .update({ full_name: parsed.data.full_name, phone: parsed.data.phone || null })
-      .eq("id", user!.id);
+    const { error } = await api.request("/profiles/me/", {
+      method: "PATCH",
+      body: JSON.stringify({ full_name: parsed.data.full_name, phone: parsed.data.phone || "" }),
+    });
     setSaving(false);
     if (error) toast.error(error.message);
     else toast.success("Profile updated");
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword.length < 10) {
+      toast.error("New password must be at least 10 characters");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("New passwords do not match");
+      return;
+    }
+    setChangingPassword(true);
+    const { error } = await api.request("/auth/update-password/", {
+      method: "POST",
+      body: JSON.stringify({ current_password: currentPassword, password: newPassword }),
+    });
+    setChangingPassword(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("Password changed");
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
   };
 
   return (
@@ -96,6 +127,53 @@ function ProfilePage() {
             </div>
             <Button type="submit" disabled={saving}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save changes
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Change password</CardTitle>
+          <CardDescription>Use at least 10 characters. You'll stay signed in on this device.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleChangePassword} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="current_password">Current password</Label>
+              <Input
+                id="current_password"
+                type="password"
+                autoComplete="current-password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new_password">New password</Label>
+              <Input
+                id="new_password"
+                type="password"
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirm_password">Confirm new password</Label>
+              <Input
+                id="confirm_password"
+                type="password"
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+              />
+            </div>
+            <Button type="submit" disabled={changingPassword}>
+              {changingPassword && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Change password
             </Button>
           </form>
         </CardContent>

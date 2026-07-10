@@ -18,6 +18,7 @@ urlpatterns = [
 
     # ─── PROFILES / MEMBERS ──────────────────────────────────────────────
     path("profiles/",                        v.api_profiles,              name="api_profiles"),
+    path("profiles/me/",                     v.api_update_my_profile,     name="api_update_my_profile"),
     path("profiles/<str:member_id>/",        v.api_profile_detail,        name="api_profile_detail"),
     path("profiles/<str:member_id>/status/", v.api_update_member_status,  name="api_member_status"),
 
@@ -32,6 +33,8 @@ urlpatterns = [
     path("savings/add/", v.api_add_contribution, name="api_add_contribution"),
 
     # ─── BANK ACCOUNTS / REAL DEPOSITS & WITHDRAWALS (Paystack) ───────────
+    path("exchange-rates/",             v.api_exchange_rates,        name="api_exchange_rates"),
+    path("exchange-rates/<str:currency_code>/", v.api_exchange_rate_delete, name="api_exchange_rate_delete"),
     path("banks/",                  v.api_banks_list,          name="api_banks_list"),
     path("bank-accounts/",          v.api_bank_accounts,       name="api_bank_accounts"),
     path("deposits/initialize/",    v.api_deposit_initialize,  name="api_deposit_initialize"),

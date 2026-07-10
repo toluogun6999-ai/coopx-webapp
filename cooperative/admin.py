@@ -4,7 +4,7 @@ CoopSys Django Admin Registration
 from django.contrib import admin
 from .models import (
     Member, Savings, Contribution, Loan, Repayment,
-    MLPrediction, Transaction, Notification, CoopSettings, BankAccount
+    MLPrediction, Transaction, Notification, CoopSettings, BankAccount, ExchangeRate
 )
 
 
@@ -62,6 +62,12 @@ class TransactionAdmin(admin.ModelAdmin):
     list_filter   = ['transaction_type', 'status']
     search_fields = ['transaction_id', 'member__user__first_name', 'paystack_reference']
     ordering      = ['-date']
+
+
+@admin.register(ExchangeRate)
+class ExchangeRateAdmin(admin.ModelAdmin):
+    list_display = ['currency_code', 'currency_name', 'rate_to_ngn', 'updated_at']
+    search_fields = ['currency_code', 'currency_name']
 
 
 @admin.register(BankAccount)

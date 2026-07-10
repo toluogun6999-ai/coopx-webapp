@@ -31,13 +31,13 @@ from google.auth.transport import requests as google_requests
 
 from .models import (
     Member, Savings, Loan, Repayment, Contribution,
-    Transaction, Notification, MLPrediction, CoopSettings, BankAccount
+    Transaction, Notification, MLPrediction, CoopSettings, BankAccount, ExchangeRate
 )
 from .serializers import (
     ProfileSerializer, LoanSerializer, SavingsTransactionSerializer,
     RepaymentSerializer, NotificationSerializer, AnnouncementSerializer,
     AuditLogSerializer, SettingsSerializer, UserSerializer,
-    BankAccountSerializer, TransactionSerializer,
+    BankAccountSerializer, TransactionSerializer, ExchangeRateSerializer,
 )
 from .ml.predictor import predict_default_risk, get_model_metrics, train_model, is_model_trained
 from . import payments
@@ -331,15 +331,24 @@ def api_password_reset_confirm(request):
 
 @api_view(["POST"])
 def api_update_password(request):
-    """POST /api/auth/update-password/  {password}"""
+    """POST /api/auth/update-password/  {current_password, password}"""
     if not request.user.is_authenticated:
         return Response({"error": "Not authenticated"}, status=401)
+
+    current_password = request.data.get("current_password")
     new_password = request.data.get("password")
+    if not current_password:
+        return Response({"error": "Current password is required"}, status=400)
+    if not request.user.check_password(current_password):
+        return Response({"error": "Current password is incorrect"}, status=401)
     if not new_password or len(new_password) < 10:
         return Response({"error": "Password must be at least 10 characters"}, status=400)
+
     request.user.set_password(new_password)
     request.user.save()
-    token, _ = Token.objects.get_or_create(user=request.user)
+    # Rotate the token so any other logged-in device is signed out.
+    Token.objects.filter(user=request.user).delete()
+    token = Token.objects.create(user=request.user)
     return Response({"success": True, "token": token.key})
 
 
@@ -356,6 +365,30 @@ def api_profiles(request):
         member = get_member(request.user)
         members = [member] if member else []
     return Response(ProfileSerializer(members, many=True).data)
+
+
+@api_view(["PATCH"])
+def api_update_my_profile(request):
+    """PATCH /api/profiles/me/  {full_name, phone}
+    Lets the signed-in member update their own display name and phone
+    (as opposed to /profiles/<id>/status/, which is admin-only)."""
+    member = get_member(request.user)
+    if member is None:
+        return Response({"error": "Member profile not found"}, status=404)
+
+    full_name = request.data.get("full_name")
+    if full_name:
+        parts = full_name.strip().split(" ", 1)
+        request.user.first_name = parts[0]
+        request.user.last_name = parts[1] if len(parts) > 1 else ""
+        request.user.save(update_fields=["first_name", "last_name"])
+
+    phone = request.data.get("phone")
+    if phone is not None:
+        member.phone = phone
+        member.save(update_fields=["phone"])
+
+    return Response(ProfileSerializer(member).data)
 
 
 @api_view(["GET"])
@@ -779,6 +812,47 @@ def api_bank_accounts(request):
     return Response(BankAccountSerializer(account).data, status=201)
 
 
+@api_view(["GET", "POST"])
+def api_exchange_rates(request):
+    """GET: list rates (any authenticated user, e.g. to populate a currency
+    selector). POST {currency_code, currency_name, rate_to_ngn}: admin-only
+    create/update of a rate."""
+    if request.method == "GET":
+        rates = ExchangeRate.objects.all()
+        return Response(ExchangeRateSerializer(rates, many=True).data)
+
+    if not is_admin_user(request.user):
+        return Response({"error": "Admin only"}, status=403)
+
+    code = (request.data.get("currency_code") or "").upper()
+    name = request.data.get("currency_name", "")
+    rate = request.data.get("rate_to_ngn")
+    if not code or not rate:
+        return Response({"error": "currency_code and rate_to_ngn are required"}, status=400)
+    try:
+        rate = Decimal(str(rate))
+        if rate <= 0:
+            raise ValueError
+    except Exception:
+        return Response({"error": "rate_to_ngn must be a positive number"}, status=400)
+
+    obj, _ = ExchangeRate.objects.update_or_create(
+        currency_code=code, defaults={"currency_name": name, "rate_to_ngn": rate},
+    )
+    return Response(ExchangeRateSerializer(obj).data, status=201)
+
+
+@api_view(["DELETE"])
+def api_exchange_rate_delete(request, currency_code):
+    """DELETE /api/exchange-rates/<code>/  — admin-only."""
+    if not is_admin_user(request.user):
+        return Response({"error": "Admin only"}, status=403)
+    deleted, _ = ExchangeRate.objects.filter(currency_code=currency_code.upper()).delete()
+    if not deleted:
+        return Response({"error": "Not found"}, status=404)
+    return Response(status=204)
+
+
 @api_view(["GET"])
 @permission_classes([permissions.AllowAny])
 def api_banks_list(request):
@@ -792,26 +866,41 @@ def api_banks_list(request):
 
 @api_view(["POST"])
 def api_deposit_initialize(request):
-    """POST /api/deposits/initialize/  {amount}
+    """POST /api/deposits/initialize/  {amount, currency}
+    `amount` is in `currency` (default NGN). If a foreign currency is given,
+    it's converted to Naira using the admin-configured ExchangeRate before
+    being charged — Paystack (NGN merchant) always charges the Naira amount.
     Creates a pending Transaction and returns Paystack checkout data. The
     Transaction/Savings/Member balance are only finalized by the webhook."""
     member = get_member(request.user)
     if member is None:
         return Response({"error": "Member profile not found"}, status=404)
 
+    currency = (request.data.get("currency") or "NGN").upper()
     try:
-        amount = Decimal(str(request.data.get("amount", 0)))
+        entered_amount = Decimal(str(request.data.get("amount", 0)))
     except Exception:
         return Response({"error": "Invalid amount"}, status=400)
-    if amount <= 0:
+    if entered_amount <= 0:
         return Response({"error": "Amount must be greater than zero"}, status=400)
+
+    if currency == "NGN":
+        ngn_amount = entered_amount
+    else:
+        rate = ExchangeRate.objects.filter(currency_code=currency).first()
+        if rate is None:
+            return Response({"error": f"Unsupported currency: {currency}"}, status=400)
+        ngn_amount = (entered_amount * rate.rate_to_ngn).quantize(Decimal("0.01"))
 
     reference = f"DEP-{uuid.uuid4().hex[:20]}"
     txn = Transaction.objects.create(
-        member=member, transaction_type="bank_deposit", amount=amount,
-        description="Bank deposit via Paystack", status="pending",
-        paystack_reference=reference, performed_by=request.user,
+        member=member, transaction_type="bank_deposit", amount=ngn_amount,
+        description=f"Bank deposit via Paystack ({entered_amount} {currency})" if currency != "NGN"
+                    else "Bank deposit via Paystack",
+        status="pending", paystack_reference=reference, performed_by=request.user,
+        currency=currency, amount_original=entered_amount,
     )
+    amount = ngn_amount
     try:
         init_data = payments.initialize_transaction(
             email=request.user.email, amount_naira=amount, reference=reference,
@@ -827,6 +916,9 @@ def api_deposit_initialize(request):
         "authorization_url": init_data.get("authorization_url"),
         "access_code": init_data.get("access_code"),
         "public_key": settings.PAYSTACK_PUBLIC_KEY,
+        "amount_ngn": float(ngn_amount),
+        "currency": currency,
+        "amount_original": float(entered_amount),
     }, status=201)
 
 
