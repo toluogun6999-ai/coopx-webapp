@@ -14,7 +14,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth.tokens import default_token_generator
 from django.core.cache import cache
 from django.core.mail import send_mail
-from django.db.models import Sum, Q
+from django.db.models import Sum, Q, Prefetch
 from django.utils import timezone
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
@@ -134,6 +134,19 @@ def _lockout_cache_key(identifier, request):
     return f"login_attempts:{identifier.lower()}:{ip}"
 
 
+def ip_rate_limited(request, bucket, limit=10, window_seconds=3600):
+    """Simple fixed-window IP rate limiter for unauthenticated write
+    endpoints (signup, password-reset requests) that don't otherwise have
+    per-account throttling. Returns True if the caller should be blocked."""
+    ip = request.META.get("REMOTE_ADDR", "unknown")
+    key = f"ratelimit:{bucket}:{ip}"
+    count = cache.get(key, 0)
+    if count >= limit:
+        return True
+    cache.set(key, count + 1, timeout=window_seconds)
+    return False
+
+
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
 def api_login(request):
@@ -244,6 +257,9 @@ def api_google_login(request):
 @permission_classes([permissions.AllowAny])
 def api_signup(request):
     """POST /api/auth/signup/  → creates member + returns token"""
+    if ip_rate_limited(request, "signup", limit=10, window_seconds=3600):
+        return Response({"error": "Too many signup attempts. Please try again later."}, status=429)
+
     data = request.data
     email = data.get("email")
     password = data.get("password")
@@ -313,6 +329,9 @@ def api_me(request):
 @permission_classes([permissions.AllowAny])
 def api_password_reset(request):
     """POST /api/auth/password-reset/  {email}  → sends a real reset link"""
+    if ip_rate_limited(request, "password_reset", limit=5, window_seconds=900):
+        return Response({"error": "Too many reset attempts. Please try again later."}, status=429)
+
     email = request.data.get("email")
     generic_response = Response({
         "success": True,
@@ -348,6 +367,9 @@ def api_password_reset(request):
 @permission_classes([permissions.AllowAny])
 def api_password_reset_confirm(request):
     """POST /api/auth/password-reset/confirm/  {uid, token, password}"""
+    if ip_rate_limited(request, "password_reset_confirm", limit=10, window_seconds=900):
+        return Response({"error": "Too many attempts. Please try again later."}, status=429)
+
     uidb64 = request.data.get("uid")
     token = request.data.get("token")
     new_password = request.data.get("password")
@@ -493,11 +515,15 @@ def api_update_member_role(request, member_id):
 @api_view(["GET"])
 def api_loans(request):
     """GET /api/loans/  (admin: all, member: own)"""
+    loans_qs = Loan.objects.select_related("member__user").prefetch_related(
+        Prefetch("mlprediction_set", queryset=MLPrediction.objects.order_by("-prediction_date"),
+                 to_attr="_prefetched_predictions")
+    )
     if is_admin_user(request.user):
-        loans = Loan.objects.select_related("member__user").order_by("-application_date")
+        loans = loans_qs.order_by("-application_date")
     else:
         member = get_member(request.user)
-        loans = Loan.objects.filter(member=member).order_by("-application_date") if member else []
+        loans = loans_qs.filter(member=member).order_by("-application_date") if member else []
     return Response(LoanSerializer(loans, many=True).data)
 
 
@@ -642,7 +668,10 @@ def api_transactions(request):
         savings = Savings.objects.select_related("member__user").order_by("-date")
     else:
         member = get_member(request.user)
-        savings = Savings.objects.filter(member=member).order_by("-date") if member else []
+        savings = (
+            Savings.objects.filter(member=member).select_related("member__user").order_by("-date")
+            if member else []
+        )
     return Response(SavingsTransactionSerializer(savings, many=True).data)
 
 

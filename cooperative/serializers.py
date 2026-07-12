@@ -104,8 +104,13 @@ class LoanSerializer(serializers.ModelSerializer):
         return mapping.get(obj.status, "Pending")
 
     def get_ml_factors(self, obj):
-        # Return most recent ML prediction's feature analysis
-        pred = obj.mlprediction_set.order_by("-prediction_date").first() if hasattr(obj, "mlprediction_set") else None
+        # Uses the prefetched list (see api_loans) to avoid an N+1 query per
+        # loan; falls back to a direct query if the view didn't prefetch it.
+        predictions = getattr(obj, "_prefetched_predictions", None)
+        if predictions is not None:
+            pred = predictions[0] if predictions else None
+        else:
+            pred = obj.mlprediction_set.order_by("-prediction_date").first() if hasattr(obj, "mlprediction_set") else None
         if pred and pred.feature_importances:
             return pred.feature_importances
         return []

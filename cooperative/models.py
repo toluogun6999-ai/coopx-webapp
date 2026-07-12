@@ -6,7 +6,14 @@ Defines all database tables for the Cooperative Society Management System.
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
-from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator, FileExtensionValidator
+from django.core.exceptions import ValidationError
+
+
+def validate_image_size(f):
+    max_mb = 5
+    if f.size > max_mb * 1024 * 1024:
+        raise ValidationError(f"Image file too large — max {max_mb}MB.")
 import uuid
 
 
@@ -44,7 +51,13 @@ class Member(models.Model):
     monthly_income = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     next_of_kin = models.CharField(max_length=100, blank=True)
     next_of_kin_phone = models.CharField(max_length=15, blank=True)
-    profile_photo = models.ImageField(upload_to='profiles/', null=True, blank=True)
+    profile_photo = models.ImageField(
+        upload_to='profiles/', null=True, blank=True,
+        validators=[
+            FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png', 'webp']),
+            validate_image_size,
+        ],
+    )
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
     is_admin = models.BooleanField(default=False, help_text="Grants access to the admin panel")
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='member',
@@ -59,6 +72,10 @@ class Member(models.Model):
         ordering = ['-join_date']
         verbose_name = 'Member'
         verbose_name_plural = 'Members'
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['role']),
+        ]
 
     def save(self, *args, **kwargs):
         if not self.member_id:
@@ -118,6 +135,10 @@ class Savings(models.Model):
         ordering = ['-date', '-created_at']
         verbose_name = 'Savings Record'
         verbose_name_plural = 'Savings Records'
+        indexes = [
+            models.Index(fields=['member', 'date']),
+            models.Index(fields=['transaction_type']),
+        ]
 
     def save(self, *args, **kwargs):
         if not self.transaction_id:
@@ -219,6 +240,10 @@ class Loan(models.Model):
 
     class Meta:
         ordering = ['-application_date']
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['member', 'status']),
+        ]
 
     def save(self, *args, **kwargs):
         if not self.loan_id:
@@ -424,6 +449,11 @@ class Transaction(models.Model):
 
     class Meta:
         ordering = ['-date']
+        indexes = [
+            models.Index(fields=['member', 'date']),
+            models.Index(fields=['transaction_type']),
+            models.Index(fields=['status']),
+        ]
 
     def save(self, *args, **kwargs):
         if not self.transaction_id:
@@ -461,6 +491,9 @@ class Notification(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['recipient', 'is_read']),
+        ]
 
     def __str__(self):
         return f"{self.recipient.username} | {self.title}"
@@ -476,7 +509,13 @@ class CoopSettings(models.Model):
     coop_address = models.TextField(blank=True)
     coop_phone = models.CharField(max_length=15, blank=True)
     coop_email = models.EmailField(blank=True)
-    logo = models.ImageField(upload_to='coop/', null=True, blank=True)
+    logo = models.ImageField(
+        upload_to='coop/', null=True, blank=True,
+        validators=[
+            FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png', 'webp']),
+            validate_image_size,
+        ],
+    )
     monthly_contribution_amount = models.DecimalField(max_digits=10, decimal_places=2, default=5000)
     max_loan_multiplier = models.FloatField(default=3.0,
                                             help_text="Maximum loan = savings × multiplier")
