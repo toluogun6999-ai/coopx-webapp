@@ -142,7 +142,7 @@ function SavingsPage() {
               )}
               {recent.map((t) => (
                 <TableRow key={t.id}>
-                  <TableCell className="font-mono text-xs">{t.id.slice(0, 8)}</TableCell>
+                  <TableCell className="font-mono text-xs">{String(t.id).slice(0, 8)}</TableCell>
                   <TableCell className="text-sm">{nameMap.get(t.member_id) ?? t.member_id.slice(0, 8)}</TableCell>
                   <TableCell>
                     <Badge variant="outline">{t.type}</Badge>
