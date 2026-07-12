@@ -17,6 +17,13 @@ class Member(models.Model):
 
     GENDER_CHOICES = [('M', 'Male'), ('F', 'Female'), ('O', 'Other')]
     STATUS_CHOICES = [('active', 'Active'), ('inactive', 'Inactive'), ('suspended', 'Suspended')]
+    ROLE_CHOICES = [
+        ('member', 'Member'),
+        ('admin', 'Administrator'),
+        ('treasurer', 'Treasurer'),
+        ('secretary', 'Secretary'),
+        ('auditor', 'Auditor'),
+    ]
     EMPLOYMENT_CHOICES = [
         ('civil_servant', 'Civil Servant'),
         ('private', 'Private Sector'),
@@ -39,7 +46,9 @@ class Member(models.Model):
     next_of_kin_phone = models.CharField(max_length=15, blank=True)
     profile_photo = models.ImageField(upload_to='profiles/', null=True, blank=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
-    is_admin = models.BooleanField(default=False)
+    is_admin = models.BooleanField(default=False, help_text="Grants access to the admin panel")
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='member',
+                            help_text="Governs which admin actions are permitted (only relevant when is_admin=True)")
     join_date = models.DateField(default=timezone.now)
     total_savings = models.DecimalField(max_digits=15, decimal_places=2, default=0)
     total_contributions = models.DecimalField(max_digits=15, decimal_places=2, default=0)
@@ -55,6 +64,11 @@ class Member(models.Model):
         if not self.member_id:
             count = Member.objects.count() + 1
             self.member_id = f"CSC-{str(count).zfill(4)}"
+        # Keep is_admin and role consistent regardless of which one was set.
+        if self.role != 'member':
+            self.is_admin = True
+        elif self.is_admin and self.role == 'member':
+            self.role = 'admin'
         super().save(*args, **kwargs)
 
     @property

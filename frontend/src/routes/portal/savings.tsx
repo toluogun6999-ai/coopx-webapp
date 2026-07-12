@@ -12,11 +12,30 @@ import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Loader2, Plus } from "lucide-react";
+import { Loader2, Plus, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { fmt } from "@/lib/coop";
 import { addContribution, listMyTransactions, memberAggregate } from "@/lib/db";
+import { api } from "@/integrations/django/client";
+
+async function downloadStatement() {
+  const token = api.getToken();
+  const res = await fetch(`${api.API_BASE}/exports/savings-statement/`, {
+    headers: token ? { Authorization: `Token ${token}` } : {},
+  });
+  if (!res.ok) {
+    toast.error("Could not generate statement");
+    return;
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "savings-statement.pdf";
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export const Route = createFileRoute("/portal/savings")({
   head: () => ({ meta: [{ title: "My Savings · CoopX" }] }),
@@ -80,10 +99,14 @@ function SavingsPage() {
           <h1 className="text-2xl font-semibold tracking-tight">My savings</h1>
           <p className="text-sm text-muted-foreground">Track your contributions and balance over time.</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm"><Plus className="mr-1 h-4 w-4" /> Add contribution</Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={downloadStatement}>
+            <FileDown className="mr-1 h-4 w-4" /> Statement (PDF)
+          </Button>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm"><Plus className="mr-1 h-4 w-4" /> Add contribution</Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader><DialogTitle>Add contribution</DialogTitle></DialogHeader>
             <div className="space-y-3">
@@ -104,7 +127,8 @@ function SavingsPage() {
               </Button>
             </DialogFooter>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">

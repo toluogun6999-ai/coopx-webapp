@@ -10,8 +10,8 @@ from .models import (
 
 @admin.register(Member)
 class MemberAdmin(admin.ModelAdmin):
-    list_display  = ['member_id', 'full_name', 'phone', 'total_savings', 'status', 'join_date']
-    list_filter   = ['status', 'gender', 'employment_type']
+    list_display  = ['member_id', 'full_name', 'phone', 'total_savings', 'status', 'role', 'join_date']
+    list_filter   = ['status', 'role', 'gender', 'employment_type']
     search_fields = ['member_id', 'user__first_name', 'user__last_name', 'user__email', 'phone']
     ordering      = ['-join_date']
     readonly_fields = ['member_id', 'created_at', 'updated_at']

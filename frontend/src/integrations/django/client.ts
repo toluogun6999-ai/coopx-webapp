@@ -79,7 +79,7 @@ const TABLE_ENDPOINTS: Record<string, string> = {
 // ============================================================================
 // Query builder — mimics supabase.from(table).select().eq()...
 // ============================================================================
-class QueryBuilder {
+class QueryBuilder implements PromiseLike<{ data: any; error: { message: string } | null }> {
   private table: string;
   private filters: { col: string; val: any }[] = [];
   private orderCol: string | null = null;
@@ -162,8 +162,11 @@ class QueryBuilder {
   }
 
   // Make the builder awaitable so `await supabase.from(x).select()` works
-  then(resolve: any, reject?: any) {
-    return this._run().then(resolve, reject);
+  then<TResult1 = { data: any; error: { message: string } | null }, TResult2 = never>(
+    onfulfilled?: ((value: { data: any; error: { message: string } | null }) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
+  ): PromiseLike<TResult1 | TResult2> {
+    return this._run().then(onfulfilled, onrejected);
   }
 }
 

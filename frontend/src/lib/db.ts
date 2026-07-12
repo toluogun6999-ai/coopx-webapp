@@ -1,6 +1,7 @@
 // Real-data access helpers for the cooperative tables.
 // All queries respect RLS (members see own data; admins see everything).
 import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/integrations/django/client";
 import { defaultRisk } from "@/lib/coop";
 import type { Member } from "@/lib/coop";
 import type { MemberStatus } from "@/lib/auth";
@@ -52,6 +53,8 @@ export type ProfileRow = {
   verified_email: boolean;
   verified_phone: boolean;
   suspension_reason: string | null;
+  role: "member" | "admin" | "treasurer" | "secretary" | "auditor";
+  is_admin: boolean;
 };
 
 export type AnnouncementRow = {
@@ -117,8 +120,7 @@ export async function submitLoanApplication(input: {
       ml_risk_probability: Number(risk.probability.toFixed(4)),
       ml_risk_level: risk.level,
       ml_factors: risk.factors,
-    })
-    .select().single();
+    });
   if (error) throw error;
   return data as LoanRow;
 }
@@ -131,13 +133,13 @@ export async function decideLoan(
   const { data: userRes } = await supabase.auth.getUser();
   const { error } = await supabase
     .from("loans")
+    .eq("id", loanId)
     .update({
       status,
       admin_note: note ?? null,
       decided_by: userRes.user?.id ?? null,
       decided_at: new Date().toISOString(),
-    })
-    .eq("id", loanId);
+    });
   if (error) throw error;
 }
 
@@ -177,9 +179,8 @@ export async function listMyNotifications(userId: string) {
 }
 
 export async function markAllRead(userId: string) {
-  const { error } = await supabase
-    .from("notifications").update({ read: true })
-    .eq("user_id", userId).eq("read", false);
+  // Backend scopes this to the authenticated user's own unread notifications.
+  const { error } = await supabase.from("notifications").update({ read: true });
   if (error) throw error;
 }
 
@@ -199,9 +200,17 @@ export async function updateMemberStatus(
 ) {
   const { error } = await supabase
     .from("profiles")
-    .update({ status, suspension_reason: reason ?? null })
-    .eq("id", memberId);
+    .eq("id", memberId)
+    .update({ status, suspension_reason: reason ?? null });
   if (error) throw error;
+}
+
+export async function updateMemberRole(memberId: string, role: string) {
+  const { error } = await api.request(`/profiles/${memberId}/role/`, {
+    method: "PATCH",
+    body: JSON.stringify({ role }),
+  });
+  if (error) throw new Error(error.message);
 }
 
 export async function memberAggregate(userId: string) {

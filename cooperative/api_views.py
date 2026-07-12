@@ -41,6 +41,7 @@ from .serializers import (
 )
 from .ml.predictor import predict_default_risk, get_model_metrics, train_model, is_model_trained
 from . import payments
+from . import exports
 
 
 # ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -61,6 +62,47 @@ def get_member(user):
         return user.member_profile
     except Exception:
         return None
+
+
+def get_role(user):
+    """Returns the effective role string for `user`: 'admin', 'treasurer',
+    'secretary', 'auditor', or 'member'. Django superusers/staff are always
+    treated as 'admin' regardless of their Member.role."""
+    if not user or not user.is_authenticated:
+        return "member"
+    if user.is_staff:
+        return "admin"
+    member = get_member(user)
+    if member and member.is_admin:
+        return member.role or "admin"
+    return "member"
+
+
+# Which roles may perform which class of admin action. 'admin' implicitly
+# has every permission — checked separately in each helper below.
+_FINANCE_ROLES = {"admin", "treasurer"}
+_MEMBER_MGMT_ROLES = {"admin", "secretary"}
+_REPORT_READ_ROLES = {"admin", "treasurer", "secretary", "auditor"}
+
+
+def can_manage_finance(user):
+    """Approve/reject loans, record repayments, edit exchange rates & settings."""
+    return get_role(user) in _FINANCE_ROLES
+
+
+def can_manage_members(user):
+    """Register members, edit member status/details, post announcements."""
+    return get_role(user) in _MEMBER_MGMT_ROLES
+
+
+def can_read_reports(user):
+    """View financial reports, audit logs, dashboard stats (read-only for auditor)."""
+    return get_role(user) in _REPORT_READ_ROLES
+
+
+def is_full_admin(user):
+    """Strictly the Administrator role — system config (ML retrain, etc.)."""
+    return get_role(user) == "admin"
 
 
 def compute_ml_features(member, loan_amount, tenure=12):
@@ -124,7 +166,7 @@ def api_login(request):
 
     cache.delete(cache_key)
     token, _ = Token.objects.get_or_create(user=user)
-    roles = ["admin"] if is_admin_user(user) else ["member"]
+    roles = [get_role(user)]
 
     return Response({
         "token": token.key,
@@ -187,7 +229,7 @@ def api_google_login(request):
         )
 
     token, _ = Token.objects.get_or_create(user=user)
-    roles = ["admin"] if is_admin_user(user) else ["member"]
+    roles = [get_role(user)]
     return Response({
         "token": token.key,
         "access_token": token.key,
@@ -258,7 +300,7 @@ def api_me(request):
     if not request.user.is_authenticated:
         return Response({"user": None, "roles": []}, status=200)
     member = get_member(request.user)
-    roles = ["admin"] if is_admin_user(request.user) else ["member"]
+    roles = [get_role(request.user)]
     return Response({
         "user": UserSerializer(request.user).data,
         "role": roles[0],
@@ -406,8 +448,8 @@ def api_profile_detail(request, member_id):
 @api_view(["PATCH"])
 def api_update_member_status(request, member_id):
     """PATCH /api/profiles/<member_id>/status/  {status, reason}"""
-    if not is_admin_user(request.user):
-        return Response({"error": "Admin only"}, status=403)
+    if not can_manage_members(request.user):
+        return Response({"error": "Admin or Secretary only"}, status=403)
     try:
         member = Member.objects.get(member_id=member_id)
     except Member.DoesNotExist:
@@ -417,6 +459,30 @@ def api_update_member_status(request, member_id):
     new_status = status_map.get(request.data.get("status"), "active")
     member.status = new_status
     member.save()
+    return Response(ProfileSerializer(member).data)
+
+
+@api_view(["PATCH"])
+def api_update_member_role(request, member_id):
+    """PATCH /api/profiles/<member_id>/role/  {role}
+    Admin-only: promote/demote a member to Treasurer/Secretary/Auditor/Admin/Member.
+    Restricted to the strict Admin role so a Secretary or Treasurer can't
+    grant themselves (or anyone else) broader access."""
+    if not is_full_admin(request.user):
+        return Response({"error": "Admin only"}, status=403)
+    try:
+        member = Member.objects.get(member_id=member_id)
+    except Member.DoesNotExist:
+        return Response({"error": "Not found"}, status=404)
+
+    role = request.data.get("role")
+    valid_roles = dict(Member.ROLE_CHOICES)
+    if role not in valid_roles:
+        return Response({"error": f"role must be one of {list(valid_roles)}"}, status=400)
+
+    member.role = role
+    member.is_admin = role != "member"
+    member.save(update_fields=["role", "is_admin"])
     return Response(ProfileSerializer(member).data)
 
 
@@ -493,8 +559,8 @@ def api_loan_apply(request):
 @api_view(["PATCH"])
 def api_loan_decide(request, loan_id):
     """PATCH /api/loans/<loan_id>/  {status, note}"""
-    if not is_admin_user(request.user):
-        return Response({"error": "Admin only"}, status=403)
+    if not can_manage_finance(request.user):
+        return Response({"error": "Admin or Treasurer only"}, status=403)
     try:
         loan = Loan.objects.get(loan_id=loan_id)
     except Loan.DoesNotExist:
@@ -541,8 +607,8 @@ def api_loan_decide(request, loan_id):
 @api_view(["POST"])
 def api_loan_repayment(request, loan_id):
     """POST /api/loans/<loan_id>/repayments/  {amount}"""
-    if not is_admin_user(request.user):
-        return Response({"error": "Admin only"}, status=403)
+    if not can_manage_finance(request.user):
+        return Response({"error": "Admin or Treasurer only"}, status=403)
     try:
         loan = Loan.objects.get(loan_id=loan_id)
     except Loan.DoesNotExist:
@@ -584,9 +650,9 @@ def api_transactions(request):
 def api_add_contribution(request):
     """POST /api/savings/  {amount, note}"""
     member = get_member(request.user)
-    # Admins can add on behalf of a member_id
+    # Admin/Treasurer can add on behalf of a member_id
     target_member_id = request.data.get("member_id")
-    if is_admin_user(request.user) and target_member_id:
+    if can_manage_finance(request.user) and target_member_id:
         try:
             member = Member.objects.get(member_id=target_member_id)
         except Member.DoesNotExist:
@@ -648,8 +714,8 @@ def api_mark_notifications_read(request):
 def api_announcements(request):
     """GET/POST /api/announcements/"""
     if request.method == "POST":
-        if not is_admin_user(request.user):
-            return Response({"error": "Admin only"}, status=403)
+        if not can_manage_members(request.user):
+            return Response({"error": "Admin or Secretary only"}, status=403)
         title = request.data.get("title")
         body = request.data.get("body", "")
         priority = request.data.get("priority", "normal")
@@ -685,8 +751,8 @@ def api_announcements(request):
 @api_view(["GET"])
 def api_audit_logs(request):
     """GET /api/audit/"""
-    if not is_admin_user(request.user):
-        return Response({"error": "Admin only"}, status=403)
+    if not can_read_reports(request.user):
+        return Response({"error": "Admin, Treasurer, Secretary or Auditor only"}, status=403)
     txns = Transaction.objects.select_related("member__user", "performed_by").order_by("-date")[:100]
     return Response(AuditLogSerializer(txns, many=True).data)
 
@@ -700,8 +766,8 @@ def api_settings(request):
     """GET/PATCH /api/settings/"""
     settings = CoopSettings.get_settings()
     if request.method == "PATCH":
-        if not is_admin_user(request.user):
-            return Response({"error": "Admin only"}, status=403)
+        if not can_manage_finance(request.user):
+            return Response({"error": "Admin or Treasurer only"}, status=403)
         ser = SettingsSerializer(settings, data=request.data, partial=True)
         ser.is_valid(raise_exception=True)
         ser.save()
@@ -725,8 +791,8 @@ def api_ml_metrics(request):
 @api_view(["GET"])
 def api_ml_predict(request, member_id):
     """GET /api/ml/predict/<member_id>/?amount=&tenure="""
-    if not is_admin_user(request.user):
-        return Response({"error": "Admin only"}, status=403)
+    if not can_manage_finance(request.user):
+        return Response({"error": "Admin or Treasurer only"}, status=403)
     try:
         member = Member.objects.get(member_id=member_id)
     except Member.DoesNotExist:
@@ -741,7 +807,7 @@ def api_ml_predict(request, member_id):
 @api_view(["POST"])
 def api_ml_retrain(request):
     """POST /api/ml/retrain/"""
-    if not is_admin_user(request.user):
+    if not is_full_admin(request.user):
         return Response({"error": "Admin only"}, status=403)
     metrics = train_model(n_samples=1200)
     return Response({"success": True, "accuracy": metrics["accuracy"],
@@ -751,8 +817,8 @@ def api_ml_retrain(request):
 @api_view(["GET"])
 def api_dashboard_stats(request):
     """GET /api/stats/  — admin dashboard aggregates"""
-    if not is_admin_user(request.user):
-        return Response({"error": "Admin only"}, status=403)
+    if not can_read_reports(request.user):
+        return Response({"error": "Admin, Treasurer, Secretary or Auditor only"}, status=403)
     total_savings = Savings.objects.filter(transaction_type="deposit").aggregate(t=Sum("amount"))["t"] or 0
     total_wd = Savings.objects.filter(transaction_type="withdrawal").aggregate(t=Sum("amount"))["t"] or 0
     return Response({
@@ -821,8 +887,8 @@ def api_exchange_rates(request):
         rates = ExchangeRate.objects.all()
         return Response(ExchangeRateSerializer(rates, many=True).data)
 
-    if not is_admin_user(request.user):
-        return Response({"error": "Admin only"}, status=403)
+    if not can_manage_finance(request.user):
+        return Response({"error": "Admin or Treasurer only"}, status=403)
 
     code = (request.data.get("currency_code") or "").upper()
     name = request.data.get("currency_name", "")
@@ -844,9 +910,9 @@ def api_exchange_rates(request):
 
 @api_view(["DELETE"])
 def api_exchange_rate_delete(request, currency_code):
-    """DELETE /api/exchange-rates/<code>/  — admin-only."""
-    if not is_admin_user(request.user):
-        return Response({"error": "Admin only"}, status=403)
+    """DELETE /api/exchange-rates/<code>/  — Admin or Treasurer only."""
+    if not can_manage_finance(request.user):
+        return Response({"error": "Admin or Treasurer only"}, status=403)
     deleted, _ = ExchangeRate.objects.filter(currency_code=currency_code.upper()).delete()
     if not deleted:
         return Response({"error": "Not found"}, status=404)
@@ -1042,3 +1108,43 @@ def api_paystack_webhook(request):
             txn.save(update_fields=["status"])
 
     return Response({"received": True})
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# EXPORTS (PDF / Excel)
+# ═══════════════════════════════════════════════════════════════════════════
+
+@api_view(["GET"])
+def api_export_savings_statement(request):
+    """GET /api/exports/savings-statement/?member_id=
+    Members download their own statement; Admin/Treasurer/Secretary/Auditor
+    can pull any member's by passing ?member_id=."""
+    member_id = request.GET.get("member_id")
+    if member_id:
+        if not can_read_reports(request.user):
+            return Response({"error": "Admin, Treasurer, Secretary or Auditor only"}, status=403)
+        try:
+            member = Member.objects.get(member_id=member_id)
+        except Member.DoesNotExist:
+            return Response({"error": "Not found"}, status=404)
+    else:
+        member = get_member(request.user)
+        if member is None:
+            return Response({"error": "Member profile not found"}, status=404)
+    return exports.savings_statement_pdf(member)
+
+
+@api_view(["GET"])
+def api_export_financial_report(request):
+    """GET /api/exports/financial-report/ — admin/treasurer/secretary/auditor."""
+    if not can_read_reports(request.user):
+        return Response({"error": "Admin, Treasurer, Secretary or Auditor only"}, status=403)
+    transactions = Transaction.objects.select_related("member__user").order_by("-date")[:500]
+    loans = Loan.objects.select_related("member__user").order_by("-application_date")[:500]
+    savings_total = Savings.objects.filter(transaction_type="deposit").aggregate(t=Sum("amount"))["t"] or 0
+    withdrawals_total = Savings.objects.filter(transaction_type="withdrawal").aggregate(t=Sum("amount"))["t"] or 0
+    disbursed_total = Loan.objects.exclude(amount_approved=None).aggregate(t=Sum("amount_approved"))["t"] or 0
+    repaid_total = Repayment.objects.filter(status="confirmed").aggregate(t=Sum("amount"))["t"] or 0
+    return exports.financial_report_excel(
+        transactions, loans, savings_total, withdrawals_total, disbursed_total, repaid_total,
+    )

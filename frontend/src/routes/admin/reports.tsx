@@ -7,6 +7,7 @@ import { Download, FileText, FileSpreadsheet } from "lucide-react";
 import { fmt } from "@/lib/coop";
 import { toast } from "sonner";
 import { listAllProfiles, listAllLoans, listAllTransactions } from "@/lib/db";
+import { api } from "@/integrations/django/client";
 
 export const Route = createFileRoute("/admin/reports")({
   head: () => ({ meta: [{ title: "Reports · CoopX" }] }),
@@ -16,6 +17,28 @@ export const Route = createFileRoute("/admin/reports")({
 function downloadCsv(filename: string, rows: (string | number)[][]) {
   const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast.success(`Exported ${filename}`);
+}
+
+async function downloadFromApi(path: string, fallbackFilename: string) {
+  const token = api.getToken();
+  const res = await fetch(`${api.API_BASE}${path}`, {
+    headers: token ? { Authorization: `Token ${token}` } : {},
+  });
+  if (!res.ok) {
+    toast.error("Export failed");
+    return;
+  }
+  const disposition = res.headers.get("Content-Disposition") ?? "";
+  const match = disposition.match(/filename="?([^"]+)"?/);
+  const filename = match?.[1] ?? fallbackFilename;
+  const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -118,6 +141,12 @@ function ReportsPage() {
           ]),
         ]),
     },
+    {
+      title: "Financial report (Excel)",
+      description: "Summary, transactions and loan ledger in one formatted workbook.",
+      icon: FileSpreadsheet,
+      onDownload: () => downloadFromApi("/exports/financial-report/", "financial-report.xlsx"),
+    },
   ];
 
   const isLoading = profilesQ.isLoading || loansQ.isLoading || txnsQ.isLoading;
@@ -143,7 +172,7 @@ function ReportsPage() {
             </CardHeader>
             <CardContent>
               <Button onClick={r.onDownload} size="sm" className="gap-2" disabled={isLoading}>
-                <Download className="h-4 w-4" /> Download CSV
+                <Download className="h-4 w-4" /> Download
               </Button>
             </CardContent>
           </Card>

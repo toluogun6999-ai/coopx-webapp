@@ -33,6 +33,7 @@ class ProfileSerializer(serializers.ModelSerializer):
         fields = [
             "id", "full_name", "email", "phone", "member_code", "joined_at",
             "status", "verified_email", "verified_phone", "suspension_reason",
+            "role", "is_admin",
         ]
 
     def get_full_name(self, obj):

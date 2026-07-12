@@ -21,6 +21,7 @@ urlpatterns = [
     path("profiles/me/",                     v.api_update_my_profile,     name="api_update_my_profile"),
     path("profiles/<str:member_id>/",        v.api_profile_detail,        name="api_profile_detail"),
     path("profiles/<str:member_id>/status/", v.api_update_member_status,  name="api_member_status"),
+    path("profiles/<str:member_id>/role/",   v.api_update_member_role,    name="api_member_role"),
 
     # ─── LOANS ───────────────────────────────────────────────────────────
     path("loans/",                            v.api_loans,          name="api_loans"),
@@ -59,4 +60,8 @@ urlpatterns = [
     path("ml/predict/<str:member_id>/", v.api_ml_predict,  name="api_ml_predict"),
     path("ml/retrain/",              v.api_ml_retrain,     name="api_ml_retrain"),
     path("stats/",                   v.api_dashboard_stats, name="api_stats"),
+
+    # ─── EXPORTS (PDF / Excel) ───────────────────────────────────────────
+    path("exports/savings-statement/", v.api_export_savings_statement, name="api_export_savings_statement"),
+    path("exports/financial-report/",  v.api_export_financial_report,  name="api_export_financial_report"),
 ]

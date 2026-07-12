@@ -11,9 +11,13 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Search, MoreHorizontal, Check, Ban, X } from "lucide-react";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { Search, MoreHorizontal, Check, Ban, X, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
-import { listAllProfiles, updateMemberStatus } from "@/lib/db";
+import { listAllProfiles, updateMemberStatus, updateMemberRole } from "@/lib/db";
+import { useAuth, ROLE_LABELS, type AppRole } from "@/lib/auth";
 import type { MemberStatus } from "@/lib/auth";
 
 export const Route = createFileRoute("/admin/members")({
@@ -22,6 +26,8 @@ export const Route = createFileRoute("/admin/members")({
 });
 
 const STATUSES: ("All" | MemberStatus)[] = ["All", "Pending", "Approved", "Suspended", "Rejected", "Inactive"];
+
+const ASSIGNABLE_ROLES: AppRole[] = ["member", "admin", "treasurer", "secretary", "auditor"];
 
 const STATUS_COLORS: Record<MemberStatus, string> = {
   Pending: "bg-amber-100 text-amber-800 hover:bg-amber-100",
@@ -35,6 +41,8 @@ function MembersPage() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<"All" | MemberStatus>("All");
   const qc = useQueryClient();
+  const { role: myRole } = useAuth();
+  const canAssignRoles = myRole === "admin";
 
   const profilesQ = useQuery({ queryKey: ["admin-profiles"], queryFn: listAllProfiles });
 
@@ -43,6 +51,15 @@ function MembersPage() {
       updateMemberStatus(args.id, args.status, args.reason),
     onSuccess: (_d, args) => {
       toast.success(`Member ${args.status.toLowerCase()}`);
+      qc.invalidateQueries({ queryKey: ["admin-profiles"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const setRoleMut = useMutation({
+    mutationFn: (args: { id: string; role: AppRole }) => updateMemberRole(args.id, args.role),
+    onSuccess: (_d, args) => {
+      toast.success(`Role set to ${ROLE_LABELS[args.role]}`);
       qc.invalidateQueries({ queryKey: ["admin-profiles"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -102,6 +119,7 @@ function MembersPage() {
                 <TableHead>Member</TableHead>
                 <TableHead>Code</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Role</TableHead>
                 <TableHead>Verified</TableHead>
                 <TableHead>Joined</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -109,10 +127,10 @@ function MembersPage() {
             </TableHeader>
             <TableBody>
               {profilesQ.isLoading && (
-                <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">Loading…</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">Loading…</TableCell></TableRow>
               )}
               {rows.length === 0 && !profilesQ.isLoading && (
-                <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No members match.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">No members match.</TableCell></TableRow>
               )}
               {rows.map((p) => (
                 <TableRow key={p.id}>
@@ -130,6 +148,27 @@ function MembersPage() {
                   <TableCell className="text-xs font-mono">{p.member_code ?? "—"}</TableCell>
                   <TableCell>
                     <Badge className={STATUS_COLORS[p.status]}>{p.status}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    {canAssignRoles ? (
+                      <Select
+                        value={p.role ?? "member"}
+                        onValueChange={(role) => setRoleMut.mutate({ id: p.id, role: role as AppRole })}
+                      >
+                        <SelectTrigger className="h-7 w-32 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ASSIGNABLE_ROLES.map((r) => (
+                            <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Badge variant="outline" className="gap-1">
+                        <ShieldCheck className="h-3 w-3" /> {ROLE_LABELS[(p.role ?? "member") as AppRole]}
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-1">
