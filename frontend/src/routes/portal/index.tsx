@@ -12,6 +12,8 @@ import { Wallet, Banknote, TrendingUp, ArrowRight } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { defaultRisk, fmt } from "@/lib/coop";
 import { listMyLoans, listMyTransactions, memberAggregate, profileToMember } from "@/lib/db";
+import { PageHeader } from "@/components/PageHeader";
+import { StatCard } from "@/components/StatCard";
 
 export const Route = createFileRoute("/portal/")({
   head: () => ({ meta: [{ title: "My CoopX" }] }),
@@ -53,53 +55,26 @@ function PortalHome() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Welcome, {profile?.full_name?.split(" ")[0] ?? "Member"}
-        </h1>
-        <p className="text-sm text-muted-foreground">Your contributions, loans and eligibility at a glance.</p>
-      </div>
+      <PageHeader
+        title={`Welcome, ${profile?.full_name?.split(" ")[0] ?? "Member"}`}
+        description="Your contributions, loans and eligibility at a glance."
+      />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Card><CardContent className="pt-6">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Savings balance</p>
-              {aggQ.isLoading ? (
-                <Skeleton className="mt-2 h-8 w-28" />
-              ) : (
-                <p className="mt-2 text-2xl font-semibold">{fmt(aggQ.data?.savings ?? 0)}</p>
-              )}
-            </div>
-            <div className="grid h-9 w-9 place-items-center rounded-lg bg-primary/10 text-primary">
-              <Wallet className="h-4 w-4" />
-            </div>
-          </div>
-          <p className="mt-3 text-xs text-muted-foreground">
-            Member since {profile ? new Date(profile.joined_at).getFullYear() : "—"}
-          </p>
-        </CardContent></Card>
-
-        <Card><CardContent className="pt-6">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Active loan</p>
-              {loansQ.isLoading ? (
-                <Skeleton className="mt-2 h-8 w-28" />
-              ) : (
-                <p className="mt-2 text-2xl font-semibold">
-                  {activeLoan ? fmt(Number(activeLoan.amount) - Number(activeLoan.paid)) : "—"}
-                </p>
-              )}
-            </div>
-            <div className="grid h-9 w-9 place-items-center rounded-lg bg-primary/10 text-primary">
-              <Banknote className="h-4 w-4" />
-            </div>
-          </div>
-          <p className="mt-3 text-xs text-muted-foreground">
-            {activeLoan ? `EMI ${fmt(Number(activeLoan.emi))} · ${activeLoan.tenure_months} mo` : "No outstanding loan"}
-          </p>
-        </CardContent></Card>
+        <StatCard
+          label="Savings balance"
+          value={fmt(aggQ.data?.savings ?? 0)}
+          icon={Wallet}
+          loading={aggQ.isLoading}
+          sub={`Member since ${profile ? new Date(profile.joined_at).getFullYear() : "—"}`}
+        />
+        <StatCard
+          label="Active loan"
+          value={activeLoan ? fmt(Number(activeLoan.amount) - Number(activeLoan.paid)) : "—"}
+          icon={Banknote}
+          loading={loansQ.isLoading}
+          sub={activeLoan ? `EMI ${fmt(Number(activeLoan.emi))} · ${activeLoan.tenure_months} mo` : "No outstanding loan"}
+        />
 
         <Card><CardContent className="pt-6">
           <div className="flex items-start justify-between">

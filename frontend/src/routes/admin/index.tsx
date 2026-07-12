@@ -7,10 +7,12 @@ import {
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import {
-  Users, Wallet, Banknote, AlertTriangle, TrendingUp, ArrowUpRight, Loader2,
+  Users, Wallet, Banknote, AlertTriangle, TrendingUp, Loader2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { fmt } from "@/lib/coop";
+import { PageHeader } from "@/components/PageHeader";
+import { StatCard } from "@/components/StatCard";
 
 export const Route = createFileRoute("/admin/")({
   head: () => ({ meta: [{ title: "Dashboard · CoopX" }] }),
@@ -116,34 +118,19 @@ function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Society overview</h1>
-          <p className="text-sm text-muted-foreground">Live data from members, savings and the loan portfolio.</p>
-        </div>
-        <Badge variant="secondary" className="gap-1">
-          <TrendingUp className="h-3 w-3" /> Real-time
-        </Badge>
-      </div>
+      <PageHeader
+        title="Society overview"
+        description="Live data from members, savings and the loan portfolio."
+        actions={
+          <Badge variant="secondary" className="gap-1">
+            <TrendingUp className="h-3 w-3" /> Real-time
+          </Badge>
+        }
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((s) => (
-          <Card key={s.label}>
-            <CardContent className="pt-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">{s.label}</p>
-                  <p className="mt-2 text-2xl font-semibold">{s.value}</p>
-                </div>
-                <div className={"grid h-9 w-9 place-items-center rounded-lg " + (s.tone === "warn" ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary")}>
-                  <s.icon className="h-4 w-4" />
-                </div>
-              </div>
-              <p className="mt-3 inline-flex items-center gap-1 text-xs text-muted-foreground">
-                <ArrowUpRight className="h-3 w-3" /> {s.sub}
-              </p>
-            </CardContent>
-          </Card>
+          <StatCard key={s.label} label={s.label} value={s.value} icon={s.icon} sub={s.sub} tone={s.tone} />
         ))}
       </div>
 

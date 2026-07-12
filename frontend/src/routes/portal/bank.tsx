@@ -15,13 +15,15 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2, Plus, Landmark, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { fmt } from "@/lib/coop";
 import { api } from "@/integrations/django/client";
 import { memberAggregate } from "@/lib/db";
+import { PageHeader } from "@/components/PageHeader";
+import { StatCard } from "@/components/StatCard";
+import { EmptyState } from "@/components/EmptyState";
 
 export const Route = createFileRoute("/portal/bank")({
   head: () => ({ meta: [{ title: "Bank & Payments · CoopX" }] }),
@@ -142,26 +144,13 @@ function BankPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Bank & payments</h1>
-          <p className="text-sm text-muted-foreground">
-            Link a real bank account, then deposit into or withdraw from your savings.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Bank & payments"
+        description="Link a real bank account, then deposit into or withdraw from your savings."
+      />
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-xs uppercase text-muted-foreground">Available balance</p>
-            {aggQ.isLoading ? (
-              <Skeleton className="mt-2 h-8 w-28" />
-            ) : (
-              <p className="mt-2 text-2xl font-semibold">{fmt(aggQ.data?.savings ?? 0)}</p>
-            )}
-          </CardContent>
-        </Card>
+        <StatCard label="Available balance" value={fmt(aggQ.data?.savings ?? 0)} icon={Landmark} loading={aggQ.isLoading} />
         <Card>
           <CardContent className="flex flex-wrap gap-2 pt-6">
             <Dialog open={depositOpen} onOpenChange={setDepositOpen}>
@@ -313,9 +302,9 @@ function BankPage() {
             </TableHeader>
             <TableBody>
               {accounts.length === 0 && (
-                <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground">
-                  <Landmark className="mx-auto mb-2 h-8 w-8 opacity-40" />
-                  No bank accounts linked yet.
+                <TableRow><TableCell colSpan={4}>
+                  <EmptyState icon={Landmark} title="No bank accounts linked yet"
+                    description="Link a verified bank account to start depositing and withdrawing." />
                 </TableCell></TableRow>
               )}
               {accounts.map((a) => (
