@@ -12,4 +12,8 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  // Default preset targets Cloudflare Workers (a `fetch`-handler module, not
+  // a listening process) — override to a plain Node server so
+  // `node .output/server/index.mjs` works on Render/Railway/any Node host.
+  nitro: { preset: "node-server" },
 });

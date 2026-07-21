@@ -1,0 +1,60 @@
+databases:
+  - name: coopx-db
+    plan: free
+    databaseName: coopx
+    user: coopx
+
+services:
+  # ── Django REST API ──────────────────────────────────────────────────────
+  - type: web
+    name: coopx-backend
+    runtime: python
+    plan: free
+    rootDir: .
+    buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate"
+    startCommand: "gunicorn coopsys.wsgi:application --bind 0.0.0.0:$PORT"
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: coopx-db
+          property: connectionString
+      - key: FRONTEND_URL
+        fromService:
+          type: web
+          name: coopx-frontend
+          property: url
+      - key: CORS_ALLOWED_ORIGINS
+        fromService:
+          type: web
+          name: coopx-frontend
+          property: url
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        value: ""
+      - key: PAYSTACK_SECRET_KEY
+        value: ""
+      - key: PAYSTACK_PUBLIC_KEY
+        value: ""
+      - key: EMAIL_BACKEND
+        value: "django.core.mail.backends.console.EmailBackend"
+
+  # ── React (TanStack Start) frontend ──────────────────────────────────────
+  - type: web
+    name: coopx-frontend
+    runtime: node
+    plan: free
+    rootDir: frontend
+    buildCommand: "npm install && npm run build"
+    startCommand: "node .output/server/index.mjs"
+    envVars:
+      # Bare origin only — client.ts appends `/api` itself if missing.
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: coopx-backend
+          property: url
+      - key: VITE_GOOGLE_CLIENT_ID
+        value: ""

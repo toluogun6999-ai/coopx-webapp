@@ -9,10 +9,18 @@
 // 23 route components keep working unchanged.
 // ============================================================================
 
-const API_BASE =
+const RAW_API_BASE =
   (import.meta as any).env?.VITE_API_URL ||
   (typeof process !== "undefined" ? (process as any).env?.API_URL : "") ||
   "http://localhost:8000/api";
+
+// Accept either a bare origin (https://backend.example.com) or one that
+// already includes /api (http://localhost:8000/api) — some hosting
+// providers can only wire up a plain service URL between services, not a
+// URL with a path suffix.
+const API_BASE = RAW_API_BASE.replace(/\/+$/, "").endsWith("/api")
+  ? RAW_API_BASE.replace(/\/+$/, "")
+  : `${RAW_API_BASE.replace(/\/+$/, "")}/api`;
 
 const TOKEN_KEY = "coopx_token";
 

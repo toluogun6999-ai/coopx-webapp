@@ -14,6 +14,13 @@ DEBUG = config('DEBUG', default=False, cast=bool)
 
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
 
+# Render (and most PaaS hosts) inject the assigned hostname at runtime —
+# trust it automatically so ALLOWED_HOSTS doesn't need to be hand-updated
+# every time the service is recreated.
+RENDER_EXTERNAL_HOSTNAME = config('RENDER_EXTERNAL_HOSTNAME', default='')
+if RENDER_EXTERNAL_HOSTNAME:
+    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+
 # ─── GOOGLE OAUTH ─────────────────────────────────────────────────────────
 GOOGLE_OAUTH_CLIENT_ID = config('GOOGLE_OAUTH_CLIENT_ID', default='')
 
@@ -66,16 +73,22 @@ REST_FRAMEWORK = {
     ],
 }
 
-# ─── CORS (allow the Vite dev server to call the API) ────────────────────
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-]
+# ─── CORS ────────────────────────────────────────────────────────────────
+CORS_ALLOWED_ORIGINS = config(
+    'CORS_ALLOWED_ORIGINS',
+    default='http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,'
+            'http://127.0.0.1:8080,http://localhost:3000,http://127.0.0.1:3000',
+    cast=Csv(),
+)
 CORS_ALLOW_CREDENTIALS = True
-# In development we allow all origins for convenience:
-CORS_ALLOW_ALL_ORIGINS = True
+# Wide-open CORS is fine in local dev but would let any website make
+# credentialed requests against a real money-handling API in production —
+# only allow all origins while DEBUG is on.
+CORS_ALLOW_ALL_ORIGINS = DEBUG
+
+CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='', cast=Csv())
+if RENDER_EXTERNAL_HOSTNAME:
+    CSRF_TRUSTED_ORIGINS.append(f'https://{RENDER_EXTERNAL_HOSTNAME}')
 
 ROOT_URLCONF = 'coopsys.urls'
 
@@ -99,25 +112,24 @@ TEMPLATES = [
 WSGI_APPLICATION = 'coopsys.wsgi.application'
 
 # ─── DATABASE ───────────────────────────────────────────────────────────
-# SQLite for development (switch to MySQL for production)
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
+# SQLite by default for local dev. If a DATABASE_URL is set (Render, Railway,
+# and most PaaS hosts inject this automatically when you attach a Postgres
+# instance), use that instead — this is the only change needed to move to a
+# real production database.
+import dj_database_url
 
-# MySQL configuration (uncomment and configure for production)
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.mysql',
-#         'NAME': 'coopsys_db',
-#         'USER': 'root',
-#         'PASSWORD': 'your_password',
-#         'HOST': 'localhost',
-#         'PORT': '3306',
-#     }
-# }
+DATABASE_URL = config('DATABASE_URL', default='')
+if DATABASE_URL:
+    DATABASES = {
+        'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600)
+    }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
