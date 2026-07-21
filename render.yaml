@@ -28,18 +28,18 @@ services:
         fromDatabase:
           name: coopx-db
           property: connectionString
-      # Render only exposes the bare hostname here (no "https://" scheme) —
-      # settings.py/client.ts prepend it if missing.
+      # Render's fromService {property: host} only returns the INTERNAL
+      # service name (e.g. "coopx-frontend"), used for Render's private
+      # network between services — not the public https://...onrender.com
+      # address a browser actually needs for CORS/redirect URLs. There's no
+      # Blueprint property that exposes the public URL, so these must be set
+      # by hand in the dashboard once you know the frontend's real URL
+      # (Environment tab → edit these two → Save; no rebuild needed, these
+      # are read at request time).
       - key: FRONTEND_URL
-        fromService:
-          type: web
-          name: coopx-frontend
-          property: host
+        value: ""
       - key: CORS_ALLOWED_ORIGINS
-        fromService:
-          type: web
-          name: coopx-frontend
-          property: host
+        value: ""
       - key: GOOGLE_OAUTH_CLIENT_ID
         value: ""
       - key: PAYSTACK_SECRET_KEY
@@ -58,12 +58,14 @@ services:
     buildCommand: "npm install && npm run build"
     startCommand: "node .output/server/index.mjs"
     envVars:
-      # Bare hostname only (Render has no property with a scheme) —
-      # client.ts prepends "https://" and appends "/api" if missing.
+      # Same limitation as FRONTEND_URL on the backend service: Render's
+      # fromService can only give the internal service name here, not the
+      # public URL a browser can actually resolve. Set this by hand in the
+      # dashboard to the backend's real https://...onrender.com URL once
+      # you know it, then trigger a manual redeploy of THIS service — Vite
+      # bakes VITE_* vars in at build time, so just changing the env var
+      # without rebuilding won't take effect.
       - key: VITE_API_URL
-        fromService:
-          type: web
-          name: coopx-backend
-          property: host
+        value: ""
       - key: VITE_GOOGLE_CLIENT_ID
         value: ""
