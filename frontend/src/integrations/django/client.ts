@@ -9,18 +9,23 @@
 // 23 route components keep working unchanged.
 // ============================================================================
 
-const RAW_API_BASE =
+const RAW_API_BASE: string =
   (import.meta as any).env?.VITE_API_URL ||
   (typeof process !== "undefined" ? (process as any).env?.API_URL : "") ||
   "http://localhost:8000/api";
 
-// Accept either a bare origin (https://backend.example.com) or one that
-// already includes /api (http://localhost:8000/api) — some hosting
-// providers can only wire up a plain service URL between services, not a
-// URL with a path suffix.
-const API_BASE = RAW_API_BASE.replace(/\/+$/, "").endsWith("/api")
-  ? RAW_API_BASE.replace(/\/+$/, "")
-  : `${RAW_API_BASE.replace(/\/+$/, "")}/api`;
+// Accept a bare hostname (backend.example.com), a bare origin
+// (https://backend.example.com), or one that already includes /api
+// (http://localhost:8000/api) — Render's blueprint env-var wiring can only
+// pass a plain hostname between services, with no scheme and no string
+// concatenation available.
+function resolveApiBase(raw: string): string {
+  let base = raw.trim().replace(/\/+$/, "");
+  if (!/^https?:\/\//.test(base)) base = `https://${base}`;
+  return base.endsWith("/api") ? base : `${base}/api`;
+}
+
+const API_BASE = resolveApiBase(RAW_API_BASE);
 
 const TOKEN_KEY = "coopx_token";
 

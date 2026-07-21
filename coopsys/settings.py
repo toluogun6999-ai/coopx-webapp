@@ -8,6 +8,17 @@ from decouple import config, Csv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+
+def _as_origin(value):
+    """Render's `fromService: {property: host}` only gives a bare hostname
+    (no scheme) — Render always serves over HTTPS, so add it if missing.
+    Local dev values (e.g. http://localhost:5173) already have a scheme and
+    pass through unchanged."""
+    value = value.strip()
+    if not value or '://' in value:
+        return value
+    return f'https://{value}'
+
 SECRET_KEY = config('SECRET_KEY')
 
 DEBUG = config('DEBUG', default=False, cast=bool)
@@ -74,19 +85,23 @@ REST_FRAMEWORK = {
 }
 
 # ─── CORS ────────────────────────────────────────────────────────────────
-CORS_ALLOWED_ORIGINS = config(
-    'CORS_ALLOWED_ORIGINS',
-    default='http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,'
-            'http://127.0.0.1:8080,http://localhost:3000,http://127.0.0.1:3000',
-    cast=Csv(),
-)
+CORS_ALLOWED_ORIGINS = [
+    _as_origin(o) for o in config(
+        'CORS_ALLOWED_ORIGINS',
+        default='http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,'
+                'http://127.0.0.1:8080,http://localhost:3000,http://127.0.0.1:3000',
+        cast=Csv(),
+    ) if o.strip()
+]
 CORS_ALLOW_CREDENTIALS = True
 # Wide-open CORS is fine in local dev but would let any website make
 # credentialed requests against a real money-handling API in production —
 # only allow all origins while DEBUG is on.
 CORS_ALLOW_ALL_ORIGINS = DEBUG
 
-CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='', cast=Csv())
+CSRF_TRUSTED_ORIGINS = [
+    _as_origin(o) for o in config('CSRF_TRUSTED_ORIGINS', default='', cast=Csv()) if o.strip()
+]
 if RENDER_EXTERNAL_HOSTNAME:
     CSRF_TRUSTED_ORIGINS.append(f'https://{RENDER_EXTERNAL_HOSTNAME}')
 
@@ -178,7 +193,7 @@ EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='no-reply@coopsys.local')
-FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173')
+FRONTEND_URL = _as_origin(config('FRONTEND_URL', default='http://localhost:5173'))
 
 # ─── SESSION ─────────────────────────────────────────────────────────────
 SESSION_COOKIE_AGE = 3600  # 1 hour
