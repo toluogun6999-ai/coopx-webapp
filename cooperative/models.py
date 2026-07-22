@@ -42,7 +42,7 @@ class Member(models.Model):
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='member_profile')
     member_id = models.CharField(max_length=20, unique=True, editable=False)
-    phone = models.CharField(max_length=15)
+    phone = models.CharField(max_length=25)
     gender = models.CharField(max_length=1, choices=GENDER_CHOICES)
     date_of_birth = models.DateField(null=True, blank=True)
     address = models.TextField()
@@ -50,7 +50,7 @@ class Member(models.Model):
     employment_type = models.CharField(max_length=20, choices=EMPLOYMENT_CHOICES, default='other')
     monthly_income = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     next_of_kin = models.CharField(max_length=100, blank=True)
-    next_of_kin_phone = models.CharField(max_length=15, blank=True)
+    next_of_kin_phone = models.CharField(max_length=25, blank=True)
     profile_photo = models.ImageField(
         upload_to='profiles/', null=True, blank=True,
         validators=[
@@ -221,7 +221,7 @@ class Loan(models.Model):
     purpose = models.CharField(max_length=20, choices=PURPOSE_CHOICES, default='personal')
     purpose_description = models.TextField(blank=True)
     guarantor_name = models.CharField(max_length=100, blank=True)
-    guarantor_phone = models.CharField(max_length=15, blank=True)
+    guarantor_phone = models.CharField(max_length=25, blank=True)
     guarantor_member_id = models.CharField(max_length=20, blank=True)
     status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='pending')
     application_date = models.DateField(default=timezone.now)
@@ -507,7 +507,7 @@ class CoopSettings(models.Model):
     coop_name = models.CharField(max_length=200, default='Chrisland University Cooperative')
     coop_reg_number = models.CharField(max_length=50, blank=True)
     coop_address = models.TextField(blank=True)
-    coop_phone = models.CharField(max_length=15, blank=True)
+    coop_phone = models.CharField(max_length=25, blank=True)
     coop_email = models.EmailField(blank=True)
     logo = models.ImageField(
         upload_to='coop/', null=True, blank=True,
