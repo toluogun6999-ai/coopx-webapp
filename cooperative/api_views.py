@@ -149,6 +149,7 @@ def ip_rate_limited(request, bucket, limit=10, window_seconds=3600):
 
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
+@authentication_classes([])
 def api_login(request):
     """POST /api/auth/login/  {email/username, password}  → {token, user, roles}"""
     identifier = request.data.get("email") or request.data.get("username")
@@ -192,6 +193,7 @@ def api_login(request):
 
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
+@authentication_classes([])
 def api_google_login(request):
     """POST /api/auth/google/  {credential}  → {token, user, roles}
 
@@ -255,6 +257,7 @@ def api_google_login(request):
 
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
+@authentication_classes([])
 def api_signup(request):
     """POST /api/auth/signup/  → creates member + returns token"""
     if ip_rate_limited(request, "signup", limit=10, window_seconds=3600):
@@ -327,6 +330,7 @@ def api_me(request):
 
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
+@authentication_classes([])
 def api_password_reset(request):
     """POST /api/auth/password-reset/  {email}  → sends a real reset link"""
     if ip_rate_limited(request, "password_reset", limit=5, window_seconds=900):
@@ -365,6 +369,7 @@ def api_password_reset(request):
 
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
+@authentication_classes([])
 def api_password_reset_confirm(request):
     """POST /api/auth/password-reset/confirm/  {uid, token, password}"""
     if ip_rate_limited(request, "password_reset_confirm", limit=10, window_seconds=900):
