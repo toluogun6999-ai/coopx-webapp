@@ -14,6 +14,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth.tokens import default_token_generator
 from django.core.cache import cache
 from django.core.mail import send_mail
+from django.db import transaction as db_transaction
 from django.db.models import Sum, Q, Prefetch
 from django.utils import timezone
 from django.utils.encoding import force_bytes, force_str
@@ -702,15 +703,23 @@ def api_add_contribution(request):
     if dj_type == "deposit":
         new_balance = member.total_savings + amount
     else:
-        new_balance = max(Decimal("0"), member.total_savings - amount)
+        if amount > member.total_savings:
+            return Response({"error": "Withdrawal amount exceeds current balance"}, status=400)
+        new_balance = member.total_savings - amount
 
-    savings = Savings.objects.create(
-        member=member, amount=amount, transaction_type=dj_type,
-        balance_after=new_balance, description=note,
-        recorded_by=request.user if request.user.is_authenticated else None,
-    )
-    member.total_savings = new_balance
-    member.save()
+    with db_transaction.atomic():
+        savings = Savings.objects.create(
+            member=member, amount=amount, transaction_type=dj_type,
+            balance_after=new_balance, description=note,
+            recorded_by=request.user if request.user.is_authenticated else None,
+        )
+        # `date` is a DateField but defaults to timezone.now() (a datetime);
+        # the in-memory value stays a datetime until it round-trips through
+        # the DB, which crashes the serializer below ("Expected a `date`,
+        # but got a `datetime`") — refresh to get the DB-coerced value.
+        savings.refresh_from_db()
+        member.total_savings = new_balance
+        member.save()
 
     Notification.objects.create(
         recipient=member.user, notification_type="savings_credited",

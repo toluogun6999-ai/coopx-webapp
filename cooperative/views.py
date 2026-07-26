@@ -12,6 +12,7 @@ from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import User
 from django.contrib import messages
+from django.db import transaction
 from django.db.models import Sum, Count, Q, Avg
 from django.http import JsonResponse, HttpResponse
 from django.utils import timezone
@@ -87,19 +88,20 @@ def register(request):
         return redirect('dashboard')
     form = RegisterForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
-        user = form.save(commit=False)
-        user.first_name = form.cleaned_data['first_name']
-        user.last_name = form.cleaned_data['last_name']
-        user.email = form.cleaned_data['email']
-        user.save()
-        Member.objects.create(
-            user=user,
-            phone=form.cleaned_data['phone'],
-            gender=form.cleaned_data['gender'],
-            address=form.cleaned_data['address'],
-            occupation=form.cleaned_data.get('occupation', ''),
-            monthly_income=form.cleaned_data.get('monthly_income', 0),
-        )
+        with transaction.atomic():
+            user = form.save(commit=False)
+            user.first_name = form.cleaned_data['first_name']
+            user.last_name = form.cleaned_data['last_name']
+            user.email = form.cleaned_data['email']
+            user.save()
+            Member.objects.create(
+                user=user,
+                phone=form.cleaned_data['phone'],
+                gender=form.cleaned_data['gender'],
+                address=form.cleaned_data['address'],
+                occupation=form.cleaned_data.get('occupation', ''),
+                monthly_income=form.cleaned_data.get('monthly_income', 0),
+            )
         send_notification(user, 'general', 'Welcome to CoopSys!',
                           f'Dear {user.first_name}, your account has been successfully created. '
                           f'You can now access all cooperative services.')
@@ -297,22 +299,24 @@ def admin_savings(request):
     if request.method == 'POST' and form.is_valid():
         savings = form.save(commit=False)
         savings.recorded_by = request.user
-        # Recalculate running balance
         member = savings.member
         last_balance = member.total_savings
         if savings.transaction_type == 'deposit':
             new_balance = last_balance + savings.amount
         else:
-            new_balance = max(0, last_balance - savings.amount)
-        savings.balance_after = new_balance
-        savings.save()
-        # Update member total
-        member.total_savings = new_balance
-        member.save()
-        # Log transaction
-        log_transaction(member, f'savings_{savings.transaction_type}',
-                        savings.amount, f'Savings {savings.transaction_type}',
-                        savings.transaction_id, request.user)
+            if savings.amount > last_balance:
+                messages.error(request, 'Withdrawal amount exceeds the member\'s current balance.')
+                return redirect('admin_savings')
+            new_balance = last_balance - savings.amount
+
+        with transaction.atomic():
+            savings.balance_after = new_balance
+            savings.save()
+            member.total_savings = new_balance
+            member.save()
+            log_transaction(member, f'savings_{savings.transaction_type}',
+                            savings.amount, f'Savings {savings.transaction_type}',
+                            savings.transaction_id, request.user)
         send_notification(member.user, 'savings_credited',
                           f'Savings {savings.transaction_type.title()} Recorded',
                           f'₦{savings.amount:,.2f} has been {savings.transaction_type}ed to your account.')
