@@ -10,7 +10,7 @@ import { Progress } from "@/components/ui/progress";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Sparkles, Loader2, AlertCircle } from "lucide-react";
+import { Sparkles, Loader2, AlertCircle, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { defaultRisk, fmt } from "@/lib/coop";
@@ -18,8 +18,27 @@ import {
   computeEmi, listMyLoans, listMyTransactions, memberAggregate,
   profileToMember, submitLoanApplication,
 } from "@/lib/db";
+import { api } from "@/integrations/django/client";
 import { LoanWorkflowStepper } from "@/components/LoanWorkflowStepper";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+
+interface CoopLoanSettings {
+  min_savings_for_loan: number;
+  min_months_for_loan: number;
+}
+
+async function fetchLoanSettings(): Promise<CoopLoanSettings> {
+  const { data, error } = await api.request<CoopLoanSettings>("/settings/");
+  if (error) throw new Error(error.message);
+  return data!;
+}
+
+function monthsSince(dateStr: string): number {
+  const joined = new Date(dateStr);
+  const now = new Date();
+  const months = (now.getFullYear() - joined.getFullYear()) * 12 + (now.getMonth() - joined.getMonth());
+  return Math.max(0, months);
+}
 
 export const Route = createFileRoute("/portal/loans")({
   head: () => ({ meta: [{ title: "My Loans · CoopX" }] }),
@@ -40,6 +59,43 @@ function LoansPage() {
   const loansQ = useQuery({ queryKey: ["my-loans", userId], queryFn: () => listMyLoans(userId) });
   const aggQ = useQuery({ queryKey: ["my-agg", userId], queryFn: () => memberAggregate(userId) });
   const txQ = useQuery({ queryKey: ["my-txns", userId], queryFn: () => listMyTransactions(userId) });
+  const settingsQ = useQuery({ queryKey: ["loan-settings"], queryFn: fetchLoanSettings });
+
+  // Per-criterion eligibility — each condition is checked and reported
+  // individually so a member sees exactly what's blocking them, rather than
+  // a single generic "not eligible" message.
+  const eligibility = useMemo(() => {
+    if (!settingsQ.data || !aggQ.data || !profile || !loansQ.data) return null;
+    const monthsAsMember = monthsSince(profile.joined_at);
+    const hasActiveLoan = loansQ.data.some((l) => ["Pending", "Disbursed", "Overdue"].includes(l.status));
+    const minSavings = Number(settingsQ.data.min_savings_for_loan);
+    const minMonths = Number(settingsQ.data.min_months_for_loan);
+
+    const criteria = [
+      {
+        key: "savings",
+        pass: aggQ.data.savings >= minSavings,
+        message: aggQ.data.savings >= minSavings
+          ? `Savings balance meets the ${fmt(minSavings)} minimum`
+          : `You need ${fmt(minSavings - aggQ.data.savings)} more in savings (minimum ${fmt(minSavings)})`,
+      },
+      {
+        key: "membership",
+        pass: monthsAsMember >= minMonths,
+        message: monthsAsMember >= minMonths
+          ? `Membership duration meets the ${minMonths}-month minimum`
+          : `You need ${minMonths - monthsAsMember} more month(s) of membership (minimum ${minMonths})`,
+      },
+      {
+        key: "activeLoan",
+        pass: !hasActiveLoan,
+        message: hasActiveLoan
+          ? "You already have an active or pending loan — settle it before applying again"
+          : "No existing active or pending loan",
+      },
+    ];
+    return { criteria, isEligible: criteria.every((c) => c.pass) };
+  }, [settingsQ.data, aggQ.data, profile, loansQ.data]);
 
   const member = useMemo(() => {
     if (!profile || !aggQ.data || !txQ.data) return null;
@@ -68,6 +124,11 @@ function LoansPage() {
     }
     if (!member || !risk) {
       toast.error("Loading your member data, try again in a moment");
+      return;
+    }
+    if (eligibility && !eligibility.isEligible) {
+      const failed = eligibility.criteria.find((c) => !c.pass);
+      toast.error(failed?.message ?? "You are not currently eligible for a loan.");
       return;
     }
     if (risk.level === "High") {
@@ -141,7 +202,28 @@ function LoansPage() {
                   <span className="font-medium">12%</span>
                 </p>
               </div>
-              <Button type="submit" className="sm:col-span-2" disabled={submit.isPending || !member || !!accountBlocked}>
+
+              {eligibility && (
+                <div className="space-y-1.5 rounded-lg border p-3 text-xs sm:col-span-2">
+                  <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Eligibility criteria
+                  </p>
+                  {eligibility.criteria.map((c) => (
+                    <div key={c.key} className="flex items-start gap-2">
+                      {c.pass
+                        ? <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                        : <X className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />}
+                      <span className={c.pass ? "text-muted-foreground" : "text-destructive"}>{c.message}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <Button
+                type="submit"
+                className="sm:col-span-2"
+                disabled={submit.isPending || !member || !!accountBlocked || (eligibility ? !eligibility.isEligible : false)}
+              >
                 {submit.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Submit application
               </Button>

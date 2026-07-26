@@ -544,11 +544,21 @@ def api_loan_apply(request):
     if Loan.objects.filter(member=member, status__in=["active", "overdue", "pending"]).exists():
         return Response({"error": "You have an existing active or pending loan"}, status=400)
 
+    settings = CoopSettings.get_settings()
+    if member.total_savings < settings.min_savings_for_loan:
+        return Response({
+            "error": f"You need at least ₦{settings.min_savings_for_loan:,.2f} in savings to apply "
+                     f"(current: ₦{member.total_savings:,.2f})",
+        }, status=400)
+    if member.months_as_member < settings.min_months_for_loan:
+        return Response({
+            "error": f"You need at least {settings.min_months_for_loan} month(s) of membership to apply "
+                     f"(current: {member.months_as_member})",
+        }, status=400)
+
     amount = Decimal(str(request.data.get("amount", 0)))
     tenure = int(request.data.get("tenure_months", 12))
     purpose = request.data.get("purpose", "personal")
-
-    settings = CoopSettings.get_settings()
     loan = Loan.objects.create(
         member=member,
         amount_requested=amount,
@@ -585,6 +595,11 @@ def api_loan_apply(request):
             title=f"New Loan Application: {loan.loan_id}",
             message=f"{member.full_name} applied for ₦{amount:,.2f}",
         )
+    # application_date is a DateField defaulting to timezone.now() (a
+    # datetime) — the in-memory value stays a datetime until it round-trips
+    # through the DB, which crashes LoanSerializer below the same way it did
+    # for Savings.date. Refresh to get the DB-coerced value.
+    loan.refresh_from_db()
     return Response(LoanSerializer(loan).data, status=201)
 
 
@@ -660,6 +675,9 @@ def api_loan_repayment(request, loan_id):
         amount=amount, description=f"Repayment for {loan.loan_id}",
         reference_id=loan.loan_id, performed_by=request.user,
     )
+    # Same DateField/datetime-default landmine as Savings.date and
+    # Loan.application_date — refresh before serializing.
+    rep.refresh_from_db()
     return Response(RepaymentSerializer(rep).data, status=201)
 
 
