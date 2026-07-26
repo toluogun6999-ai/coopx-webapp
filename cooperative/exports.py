@@ -79,6 +79,90 @@ def savings_statement_pdf(member):
     return resp
 
 
+def _single_sheet_excel(sheet_title, headers, rows, column_widths, filename):
+    """Shared builder for the three single-table ledger exports below."""
+    wb = Workbook()
+    header_fill = PatternFill(start_color="225C3A", end_color="225C3A", fill_type="solid")
+    header_font = Font(color="FFFFFF", bold=True)
+
+    ws = wb.active
+    ws.title = sheet_title
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+    for row in rows:
+        ws.append(row)
+    for col, width in zip("ABCDEFGHIJ", column_widths):
+        ws.column_dimensions[col].width = width
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    resp = _excel_response(filename)
+    resp.write(buf.read())
+    return resp
+
+
+def member_register_excel(members):
+    """Full member register: identity, contact, status, and savings balance."""
+    rows = [
+        [
+            m.member_id, m.full_name, m.user.email, m.phone, m.get_status_display(),
+            m.get_role_display(), float(m.total_savings), m.join_date.strftime("%Y-%m-%d"),
+        ]
+        for m in members
+    ]
+    return _single_sheet_excel(
+        "Member Register",
+        ["Member ID", "Full Name", "Email", "Phone", "Status", "Role", "Savings Balance (₦)", "Joined"],
+        rows,
+        [14, 24, 26, 16, 12, 12, 18, 14],
+        f"member-register-{timezone.now().strftime('%Y%m%d')}.xlsx",
+    )
+
+
+def savings_ledger_excel(savings_records):
+    """Full savings ledger: every deposit/withdrawal/dividend across all members."""
+    rows = [
+        [
+            s.transaction_id, s.member.member_id, s.member.full_name,
+            s.get_transaction_type_display(), float(s.amount), float(s.balance_after),
+            s.date.strftime("%Y-%m-%d"), s.description,
+        ]
+        for s in savings_records
+    ]
+    return _single_sheet_excel(
+        "Savings Ledger",
+        ["Transaction ID", "Member ID", "Member Name", "Type", "Amount (₦)",
+         "Balance After (₦)", "Date", "Description"],
+        rows,
+        [18, 12, 24, 14, 14, 16, 12, 30],
+        f"savings-ledger-{timezone.now().strftime('%Y%m%d')}.xlsx",
+    )
+
+
+def loan_ledger_excel(loans):
+    """Full loan ledger: every loan application regardless of status."""
+    rows = [
+        [
+            l.loan_id, l.member.member_id, l.member.full_name, l.get_purpose_display(),
+            float(l.amount_requested), float(l.amount_approved or 0),
+            l.get_status_display(), float(l.outstanding_balance),
+            l.risk_score or "—", l.application_date.strftime("%Y-%m-%d"),
+        ]
+        for l in loans
+    ]
+    return _single_sheet_excel(
+        "Loan Ledger",
+        ["Loan ID", "Member ID", "Member Name", "Purpose", "Requested (₦)", "Approved (₦)",
+         "Status", "Outstanding (₦)", "ML Risk", "Applied"],
+        rows,
+        [14, 12, 24, 16, 16, 16, 12, 16, 10, 12],
+        f"loan-ledger-{timezone.now().strftime('%Y%m%d')}.xlsx",
+    )
+
+
 def financial_report_excel(transactions, loans, savings_total, withdrawals_total, disbursed_total, repaid_total):
     """Cooperative-wide financial report as a multi-sheet Excel workbook."""
     wb = Workbook()

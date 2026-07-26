@@ -147,6 +147,24 @@ function ReportsPage() {
       icon: FileSpreadsheet,
       onDownload: () => downloadFromApi("/exports/financial-report/", "financial-report.xlsx"),
     },
+    {
+      title: "Member register (Excel)",
+      description: "Every member's identity, contact, status, role, and savings balance.",
+      icon: FileSpreadsheet,
+      onDownload: () => downloadFromApi("/exports/member-register/", "member-register.xlsx"),
+    },
+    {
+      title: "Savings ledger (Excel)",
+      description: "Every deposit, withdrawal and dividend across all members.",
+      icon: FileSpreadsheet,
+      onDownload: () => downloadFromApi("/exports/savings-ledger/", "savings-ledger.xlsx"),
+    },
+    {
+      title: "Loan ledger (Excel)",
+      description: "Every loan application with status, risk score, and outstanding balance.",
+      icon: FileSpreadsheet,
+      onDownload: () => downloadFromApi("/exports/loan-ledger/", "loan-ledger.xlsx"),
+    },
   ];
 
   const isLoading = profilesQ.isLoading || loansQ.isLoading || txnsQ.isLoading;

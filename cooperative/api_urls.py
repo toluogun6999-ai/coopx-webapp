@@ -64,4 +64,7 @@ urlpatterns = [
     # ─── EXPORTS (PDF / Excel) ───────────────────────────────────────────
     path("exports/savings-statement/", v.api_export_savings_statement, name="api_export_savings_statement"),
     path("exports/financial-report/",  v.api_export_financial_report,  name="api_export_financial_report"),
+    path("exports/member-register/",   v.api_export_member_register,   name="api_export_member_register"),
+    path("exports/savings-ledger/",    v.api_export_savings_ledger,    name="api_export_savings_ledger"),
+    path("exports/loan-ledger/",       v.api_export_loan_ledger,       name="api_export_loan_ledger"),
 ]

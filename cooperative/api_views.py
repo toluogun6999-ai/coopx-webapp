@@ -1209,3 +1209,30 @@ def api_export_financial_report(request):
     return exports.financial_report_excel(
         transactions, loans, savings_total, withdrawals_total, disbursed_total, repaid_total,
     )
+
+
+@api_view(["GET"])
+def api_export_member_register(request):
+    """GET /api/exports/member-register/ — admin/treasurer/secretary/auditor."""
+    if not can_read_reports(request.user):
+        return Response({"error": "Admin, Treasurer, Secretary or Auditor only"}, status=403)
+    members = Member.objects.select_related("user").order_by("member_id")
+    return exports.member_register_excel(members)
+
+
+@api_view(["GET"])
+def api_export_savings_ledger(request):
+    """GET /api/exports/savings-ledger/ — admin/treasurer/secretary/auditor."""
+    if not can_read_reports(request.user):
+        return Response({"error": "Admin, Treasurer, Secretary or Auditor only"}, status=403)
+    savings_records = Savings.objects.select_related("member__user").order_by("-date")[:2000]
+    return exports.savings_ledger_excel(savings_records)
+
+
+@api_view(["GET"])
+def api_export_loan_ledger(request):
+    """GET /api/exports/loan-ledger/ — admin/treasurer/secretary/auditor."""
+    if not can_read_reports(request.user):
+        return Response({"error": "Admin, Treasurer, Secretary or Auditor only"}, status=403)
+    loans = Loan.objects.select_related("member__user").order_by("-application_date")[:2000]
+    return exports.loan_ledger_excel(loans)
