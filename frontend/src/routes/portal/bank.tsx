@@ -110,10 +110,15 @@ function BankPage() {
     onSuccess: (data) => {
       if (data?.authorization_url) {
         window.location.href = data.authorization_url;
-      } else {
-        toast.success("Deposit initialized");
+        return;
       }
+      toast.success(
+        data?.demo
+          ? "Demo deposit credited instantly — Paystack isn't configured, so this used demo money."
+          : "Deposit initialized",
+      );
       setDepositOpen(false);
+      qc.invalidateQueries({ queryKey: ["my-agg", userId] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -132,8 +137,12 @@ function BankPage() {
       if (error) throw new Error(error.message);
       return data;
     },
-    onSuccess: () => {
-      toast.success("Withdrawal initiated — funds are on their way to your bank");
+    onSuccess: (data: any) => {
+      toast.success(
+        data?.demo
+          ? "Demo withdrawal completed instantly — Paystack isn't configured, so this used demo money."
+          : "Withdrawal initiated — funds are on their way to your bank",
+      );
       setWithdrawOpen(false);
       qc.invalidateQueries({ queryKey: ["my-agg", userId] });
     },

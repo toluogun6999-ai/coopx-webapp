@@ -903,6 +903,42 @@ def api_dashboard_stats(request):
 # BANK ACCOUNTS + REAL DEPOSITS / WITHDRAWALS (Paystack)
 # ═══════════════════════════════════════════════════════════════════════════
 
+def _complete_deposit(txn):
+    """Credit a pending deposit Transaction. Called by the Paystack webhook
+    for real deposits, and immediately (no webhook exists) in demo mode."""
+    member = txn.member
+    new_balance = member.total_savings + txn.amount
+    Savings.objects.create(
+        member=member, amount=txn.amount, transaction_type="deposit",
+        balance_after=new_balance, description=txn.description,
+    )
+    member.total_savings = new_balance
+    member.save(update_fields=["total_savings"])
+    txn.status = "success"
+    txn.save(update_fields=["status"])
+    Notification.objects.create(
+        recipient=member.user, notification_type="savings_credited",
+        title="Deposit Successful",
+        message=f"₦{txn.amount:,.2f} has been credited to your savings.",
+    )
+
+
+def _complete_withdrawal(txn):
+    """Confirm a pending withdrawal Transaction (balance already reserved
+    at initiate time). Called by the Paystack webhook for real transfers,
+    and immediately in demo mode."""
+    Savings.objects.create(
+        member=txn.member, amount=txn.amount, transaction_type="withdrawal",
+        balance_after=txn.member.total_savings, description=txn.description,
+    )
+    txn.status = "success"
+    txn.save(update_fields=["status"])
+    Notification.objects.create(
+        recipient=txn.member.user, notification_type="savings_credited",
+        title="Withdrawal Successful",
+        message=f"₦{txn.amount:,.2f} has been sent to your bank account.",
+    )
+
 @api_view(["GET", "POST"])
 def api_bank_accounts(request):
     """GET: list the member's linked bank accounts.
@@ -1019,11 +1055,17 @@ def api_deposit_initialize(request):
             return Response({"error": f"Unsupported currency: {currency}"}, status=400)
         ngn_amount = (entered_amount * rate.rate_to_ngn).quantize(Decimal("0.01"))
 
-    reference = f"DEP-{uuid.uuid4().hex[:20]}"
+    is_demo = payments.is_demo_mode()
+    reference = f"{'DEMO-' if is_demo else ''}DEP-{uuid.uuid4().hex[:20]}"
+    description = (
+        f"[DEMO] Deposit ({entered_amount} {currency})" if is_demo and currency != "NGN"
+        else "[DEMO] Deposit" if is_demo
+        else f"Bank deposit via Paystack ({entered_amount} {currency})" if currency != "NGN"
+        else "Bank deposit via Paystack"
+    )
     txn = Transaction.objects.create(
         member=member, transaction_type="bank_deposit", amount=ngn_amount,
-        description=f"Bank deposit via Paystack ({entered_amount} {currency})" if currency != "NGN"
-                    else "Bank deposit via Paystack",
+        description=description,
         status="pending", paystack_reference=reference, performed_by=request.user,
         currency=currency, amount_original=entered_amount,
     )
@@ -1037,6 +1079,11 @@ def api_deposit_initialize(request):
         txn.save(update_fields=["status"])
         return Response({"error": str(e)}, status=400)
 
+    # No real gateway in demo mode, so there's no webhook to confirm the
+    # charge — complete it immediately instead.
+    if is_demo:
+        _complete_deposit(txn)
+
     return Response({
         "transaction_id": txn.transaction_id,
         "reference": reference,
@@ -1046,6 +1093,7 @@ def api_deposit_initialize(request):
         "amount_ngn": float(ngn_amount),
         "currency": currency,
         "amount_original": float(entered_amount),
+        "demo": is_demo,
     }, status=201)
 
 
@@ -1080,26 +1128,37 @@ def api_withdrawal_initiate(request):
             bank_account.paystack_recipient_code = recipient["recipient_code"]
             bank_account.save(update_fields=["paystack_recipient_code"])
 
-        reference = f"WD-{uuid.uuid4().hex[:20]}"
+        is_demo = payments.is_demo_mode()
+        reference = f"{'DEMO-' if is_demo else ''}WD-{uuid.uuid4().hex[:20]}"
         # Reserve the funds immediately so a member can't withdraw the same
         # balance twice while a transfer is pending confirmation.
         member.total_savings = member.total_savings - amount
         member.save(update_fields=["total_savings"])
 
+        description = (
+            f"[DEMO] Withdrawal to {bank_account.bank_name} ({bank_account.account_number})" if is_demo
+            else f"Withdrawal to {bank_account.bank_name} ({bank_account.account_number})"
+        )
         txn = Transaction.objects.create(
             member=member, transaction_type="bank_withdrawal", amount=amount,
-            description=f"Withdrawal to {bank_account.bank_name} ({bank_account.account_number})",
+            description=description,
             status="pending", paystack_reference=reference,
             bank_account=bank_account, performed_by=request.user,
         )
         payments.initiate_transfer(bank_account.paystack_recipient_code, amount, reference)
+        # No real gateway/webhook in demo mode — confirm immediately.
+        if is_demo:
+            _complete_withdrawal(txn)
     except payments.PaystackError as e:
         # Roll back the reservation if Paystack rejected the transfer outright.
         member.total_savings = member.total_savings + amount
         member.save(update_fields=["total_savings"])
         return Response({"error": str(e)}, status=400)
 
-    return Response({"transaction_id": txn.transaction_id, "reference": reference, "status": "pending"}, status=201)
+    return Response({
+        "transaction_id": txn.transaction_id, "reference": reference,
+        "status": "success" if is_demo else "pending", "demo": is_demo,
+    }, status=201)
 
 
 @csrf_exempt
@@ -1125,48 +1184,25 @@ def api_paystack_webhook(request):
             except payments.PaystackError:
                 return Response({"received": True})
             if verified.get("status") == "success":
-                member = txn.member
-                new_balance = member.total_savings + txn.amount
-                Savings.objects.create(
-                    member=member, amount=txn.amount, transaction_type="deposit",
-                    balance_after=new_balance, description="Bank deposit via Paystack",
-                )
-                member.total_savings = new_balance
-                member.save(update_fields=["total_savings"])
-                txn.status = "success"
-                txn.save(update_fields=["status"])
-                Notification.objects.create(
-                    recipient=member.user, notification_type="savings_credited",
-                    title="Deposit Successful",
-                    message=f"₦{txn.amount:,.2f} has been credited to your savings.",
-                )
+                _complete_deposit(txn)
 
     elif event in ("transfer.success", "transfer.failed", "transfer.reversed"):
         txn = Transaction.objects.filter(paystack_reference=reference, transaction_type="bank_withdrawal").first()
         if txn and txn.status == "pending":
             if event == "transfer.success":
-                Savings.objects.create(
-                    member=txn.member, amount=txn.amount, transaction_type="withdrawal",
-                    balance_after=txn.member.total_savings, description=txn.description,
-                )
-                txn.status = "success"
-                Notification.objects.create(
-                    recipient=txn.member.user, notification_type="savings_credited",
-                    title="Withdrawal Successful",
-                    message=f"₦{txn.amount:,.2f} has been sent to your bank account.",
-                )
+                _complete_withdrawal(txn)
             else:
                 # Refund the reserved balance since the transfer didn't go through.
                 member = txn.member
                 member.total_savings = member.total_savings + txn.amount
                 member.save(update_fields=["total_savings"])
                 txn.status = "failed"
+                txn.save(update_fields=["status"])
                 Notification.objects.create(
                     recipient=txn.member.user, notification_type="general",
                     title="Withdrawal Failed",
                     message=f"Your withdrawal of ₦{txn.amount:,.2f} failed and has been refunded to your balance.",
                 )
-            txn.save(update_fields=["status"])
 
     return Response({"received": True})
 
