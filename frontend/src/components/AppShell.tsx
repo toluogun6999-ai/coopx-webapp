@@ -127,29 +127,30 @@ export function AppShell({ title, subtitle, nav, children }: Props) {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <aside className="fixed inset-y-0 left-0 hidden w-64 border-r bg-card md:block">
-        <NavContent {...navProps} />
-      </aside>
-
+      {/* The nav lives entirely in this on-demand drawer now — on every
+          screen size, not just mobile. It opens via the header's menu
+          button and closes automatically the moment a nav item is
+          clicked (see NavContent's onNavigate), so it never sits
+          permanently docked and eating into content width. */}
       <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-        <SheetContent side="left" className="w-72 p-0 md:hidden">
+        <SheetContent side="left" className="w-72 p-0">
           <SheetTitle className="sr-only">Navigation</SheetTitle>
           <NavContent {...navProps} onNavigate={() => setMobileNavOpen(false)} />
         </SheetContent>
       </Sheet>
 
-      <div className="md:pl-64">
+      <div>
         <header className="sticky top-0 z-10 flex h-14 items-center gap-2 border-b bg-background/80 px-4 backdrop-blur md:px-8">
           <Button
             variant="ghost"
             size="icon"
-            className="h-9 w-9 md:hidden"
+            className="h-9 w-9"
             aria-label="Open navigation menu"
             onClick={() => setMobileNavOpen(true)}
           >
             <Menu className="h-5 w-5" />
           </Button>
-          <div className="flex items-center gap-2 md:hidden">
+          <div className="flex items-center gap-2">
             <div className="grid h-7 w-7 place-items-center rounded-md bg-primary text-primary-foreground">
               <Leaf className="h-4 w-4" />
             </div>
@@ -169,13 +170,7 @@ export function AppShell({ title, subtitle, nav, children }: Props) {
 export function ShellLoading() {
   return (
     <div className="min-h-screen bg-background">
-      <div className="fixed inset-y-0 left-0 hidden w-64 border-r bg-card p-3 md:block">
-        <Skeleton className="h-11 w-full mb-4" />
-        {Array.from({ length: 5 }).map((_, i) => (
-          <Skeleton key={i} className="mb-2 h-9 w-full" />
-        ))}
-      </div>
-      <div className="md:pl-64 px-4 py-6 md:px-8 md:py-8 space-y-4">
+      <div className="px-4 py-6 md:px-8 md:py-8 space-y-4">
         <Skeleton className="h-8 w-56" />
         <div className="grid gap-4 sm:grid-cols-3">
           <Skeleton className="h-24 w-full" />
