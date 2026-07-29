@@ -79,9 +79,13 @@ export type AuditRow = {
 
 // ---------- Loans ----------
 
-export async function listMyLoans(userId: string) {
+export async function listMyLoans(_userId: string) {
+  // The backend already scopes /api/loans/ to "my own loans" for non-admin
+  // callers — a client-side .eq("member_id", userId) filter here would
+  // compare the Member's string code (e.g. "CSC-0009") against the Django
+  // User's numeric id, which never match and silently zeroed this out.
   const { data, error } = await supabase
-    .from("loans").select("*").eq("member_id", userId)
+    .from("loans").select("*")
     .order("applied_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as LoanRow[];
@@ -145,9 +149,12 @@ export async function decideLoan(
 
 // ---------- Savings transactions ----------
 
-export async function listMyTransactions(userId: string) {
+export async function listMyTransactions(_userId: string) {
+  // Same reasoning as listMyLoans: the backend already scopes /api/savings/
+  // to the caller's own records for non-admins; a client-side member_id
+  // filter here compared the wrong ID field and always returned empty.
   const { data, error } = await supabase
-    .from("savings_transactions").select("*").eq("member_id", userId)
+    .from("savings_transactions").select("*")
     .order("occurred_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as TxnRow[];
@@ -213,10 +220,12 @@ export async function updateMemberRole(memberId: string, role: string) {
   if (error) throw new Error(error.message);
 }
 
-export async function memberAggregate(userId: string) {
+export async function memberAggregate(_userId: string) {
+  // Same reasoning as listMyLoans/listMyTransactions above — the backend
+  // already scopes both endpoints to the caller's own records.
   const [{ data: txns }, { data: loans }] = await Promise.all([
-    supabase.from("savings_transactions").select("type, amount").eq("member_id", userId),
-    supabase.from("loans").select("amount, paid, status").eq("member_id", userId),
+    supabase.from("savings_transactions").select("type, amount"),
+    supabase.from("loans").select("amount, paid, status"),
   ]);
   const savings = (txns ?? []).reduce((s, t: { type: string; amount: number }) => {
     if (t.type === "Contribution") return s + Number(t.amount);
