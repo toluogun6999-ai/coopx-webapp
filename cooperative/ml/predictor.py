@@ -136,6 +136,26 @@ def generate_training_data(n_samples: int = 1200) -> pd.DataFrame:
     data['debt_to_savings_ratio'] = (
         data['loan_amount'] / (data['monthly_income'] * data['tenure_months'] + 1)
     )
+
+    # Real financial behavior is noisy — a member with textbook-good numbers
+    # can still default, and vice versa. Without this, the risk bands above
+    # are perfectly separable by construction and the model trains to a
+    # meaningless 100% accuracy. Add per-feature measurement noise plus a
+    # small amount of label noise so the model has to generalize rather than
+    # memorize a clean decision boundary.
+    rng = np.random.default_rng(42)
+    for col, scale in [
+        ('savings_balance', 0.15), ('loan_amount', 0.10), ('monthly_income', 0.15),
+        ('contribution_consistency', 0.08), ('repayment_history_score', 0.08),
+    ]:
+        data[col] = data[col] * (1 + rng.normal(0, scale, len(data)))
+        data[col] = data[col].clip(lower=0)
+    data['contribution_consistency'] = data['contribution_consistency'].clip(0, 1)
+
+    flip_mask = rng.random(len(data)) < 0.08
+    flip_shift = rng.choice([-1, 1], size=len(data))
+    data.loc[flip_mask, 'default'] = (data.loc[flip_mask, 'default'] + flip_shift[flip_mask]).clip(0, 2)
+
     return data
 
 

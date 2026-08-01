@@ -54,6 +54,23 @@ ATTRITION_FEATURES = [
 
 # ─── SYNTHETIC TRAINING DATA ──────────────────────────────────────────────────
 
+def _add_realistic_noise(data, label_col, numeric_cols, seed, flip_rate=0.08):
+    """Real member behavior isn't perfectly separable by a handful of
+    features — without this, these classes are separable by construction
+    and the model trains to a meaningless 100% accuracy. Adds per-feature
+    measurement noise plus a small amount of label noise so the model has
+    to generalize rather than memorize a clean boundary."""
+    rng = np.random.default_rng(seed)
+    for col in numeric_cols:
+        data[col] = data[col] * (1 + rng.normal(0, 0.12, len(data)))
+        data[col] = data[col].clip(lower=0)
+    if 'contribution_consistency' in data.columns:
+        data['contribution_consistency'] = data['contribution_consistency'].clip(0, 1)
+    flip_mask = rng.random(len(data)) < flip_rate
+    data.loc[flip_mask, label_col] = 1 - data.loc[flip_mask, label_col]
+    return data
+
+
 def _generate_shortfall_data(n_samples=1000):
     np.random.seed(7)
     n_ok, n_risk = n_samples // 2, n_samples - n_samples // 2
@@ -74,7 +91,12 @@ def _generate_shortfall_data(n_samples=1000):
         'shortfall': np.ones(n_risk, dtype=int),
     }
     data = pd.concat([pd.DataFrame(ok), pd.DataFrame(risk)], ignore_index=True)
-    return data.sample(frac=1, random_state=7).reset_index(drop=True)
+    data = data.sample(frac=1, random_state=7).reset_index(drop=True)
+    return _add_realistic_noise(
+        data, 'shortfall',
+        ['contribution_consistency', 'monthly_income', 'savings_balance'],
+        seed=7,
+    )
 
 
 def _generate_attrition_data(n_samples=1000):
@@ -97,7 +119,12 @@ def _generate_attrition_data(n_samples=1000):
         'attrited': np.ones(n_leave, dtype=int),
     }
     data = pd.concat([pd.DataFrame(stay), pd.DataFrame(leave)], ignore_index=True)
-    return data.sample(frac=1, random_state=11).reset_index(drop=True)
+    data = data.sample(frac=1, random_state=11).reset_index(drop=True)
+    return _add_realistic_noise(
+        data, 'attrited',
+        ['contribution_consistency', 'savings_balance', 'days_since_last_activity'],
+        seed=11,
+    )
 
 
 # ─── TRAINING ──────────────────────────────────────────────────────────────
