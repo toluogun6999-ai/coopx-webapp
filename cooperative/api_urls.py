@@ -59,6 +59,11 @@ urlpatterns = [
     path("ml/metrics/",              v.api_ml_metrics,     name="api_ml_metrics"),
     path("ml/predict/<str:member_id>/", v.api_ml_predict,  name="api_ml_predict"),
     path("ml/retrain/",              v.api_ml_retrain,     name="api_ml_retrain"),
+    path("ml/shortfall/",            v.api_ml_shortfall,        name="api_ml_shortfall"),
+    path("ml/attrition/",            v.api_ml_attrition,        name="api_ml_attrition"),
+    path("ml/anomalies/",            v.api_ml_anomalies,        name="api_ml_anomalies"),
+    path("ml/extended-metrics/",     v.api_ml_extended_metrics, name="api_ml_extended_metrics"),
+    path("ml/retrain-extended/",     v.api_ml_retrain_extended, name="api_ml_retrain_extended"),
     path("stats/",                   v.api_dashboard_stats, name="api_stats"),
 
     # ─── EXPORTS (PDF / Excel) ───────────────────────────────────────────

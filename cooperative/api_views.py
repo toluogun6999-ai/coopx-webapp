@@ -41,6 +41,7 @@ from .serializers import (
     BankAccountSerializer, TransactionSerializer, ExchangeRateSerializer,
 )
 from .ml.predictor import predict_default_risk, get_model_metrics, train_model, is_model_trained
+from .ml import extended as ml_extended
 from . import payments
 from . import exports
 
@@ -123,6 +124,69 @@ def compute_ml_features(member, loan_amount, tenure=12):
         "monthly_income": float(member.monthly_income),
         "tenure_months": tenure,
         "repayment_history_score": rep_score,
+    }
+
+
+def compute_shortfall_features(member):
+    """Real per-member features for the contribution-shortfall model."""
+    contribs = Contribution.objects.filter(member=member).order_by("-date")
+    total = contribs.count()
+    paid = contribs.filter(is_paid=True).count()
+    consistency = (paid / total) if total > 0 else 0.5
+
+    streak = 0
+    for c in contribs:
+        if c.is_paid:
+            break
+        streak += 1
+
+    return {
+        "contribution_consistency": consistency,
+        "months_as_member": member.months_as_member,
+        "monthly_income": float(member.monthly_income),
+        "savings_balance": float(member.total_savings),
+        "recent_missed_streak": streak,
+    }
+
+
+def compute_attrition_features(member):
+    """Real per-member features for the member-attrition model."""
+    contribs = Contribution.objects.filter(member=member)
+    total = contribs.count()
+    paid = contribs.filter(is_paid=True).count()
+    consistency = (paid / total) if total > 0 else 0.5
+
+    last_savings = Savings.objects.filter(member=member).order_by("-created_at").first()
+    last_txn = Transaction.objects.filter(member=member).order_by("-date").first()
+    last_dates = [d for d in [
+        last_savings.created_at if last_savings else None,
+        last_txn.date if last_txn else None,
+    ] if d is not None]
+    if last_dates:
+        most_recent = max(d.date() if hasattr(d, "date") else d for d in last_dates)
+        days_since = (timezone.now().date() - most_recent).days
+    else:
+        days_since = 365
+
+    now = timezone.now().date()
+    recent_3mo = Savings.objects.filter(
+        member=member, transaction_type="deposit", date__gte=now - timedelta(days=90),
+    ).aggregate(t=Sum("amount"))["t"] or 0
+    prior_3mo = Savings.objects.filter(
+        member=member, transaction_type="deposit",
+        date__gte=now - timedelta(days=180), date__lt=now - timedelta(days=90),
+    ).aggregate(t=Sum("amount"))["t"] or 0
+    savings_trend = (
+        (float(recent_3mo) - float(prior_3mo)) / float(prior_3mo)
+        if prior_3mo > 0 else (0.2 if recent_3mo > 0 else -0.2)
+    )
+
+    return {
+        "months_as_member": member.months_as_member,
+        "contribution_consistency": consistency,
+        "savings_balance": float(member.total_savings),
+        "days_since_last_activity": days_since,
+        "savings_trend": savings_trend,
     }
 
 
@@ -873,6 +937,95 @@ def api_ml_retrain(request):
     metrics = train_model(n_samples=1200)
     return Response({"success": True, "accuracy": metrics["accuracy"],
                      "f1_score": metrics["f1_score"]})
+
+
+@api_view(["GET"])
+def api_ml_shortfall(request):
+    """GET /api/ml/shortfall/  — contribution-shortfall risk.
+    Admin/Treasurer/Secretary/Auditor: every member. Member: own only."""
+    if can_read_reports(request.user):
+        members = Member.objects.select_related("user").filter(status="active")
+    else:
+        member = get_member(request.user)
+        members = [member] if member else []
+
+    results = []
+    for m in members:
+        pred = ml_extended.predict_contribution_shortfall(compute_shortfall_features(m))
+        results.append({
+            "member_id": m.member_id, "member_name": m.full_name,
+            **pred,
+        })
+    results.sort(key=lambda r: r["shortfall_probability"], reverse=True)
+    return Response(results)
+
+
+@api_view(["GET"])
+def api_ml_attrition(request):
+    """GET /api/ml/attrition/ — member-attrition risk. Admin/Treasurer/
+    Secretary/Auditor only (this is a cooperative-management signal, not
+    something a member needs to see about themselves)."""
+    if not can_read_reports(request.user):
+        return Response({"error": "Admin, Treasurer, Secretary or Auditor only"}, status=403)
+    members = Member.objects.select_related("user").filter(status="active")
+    results = []
+    for m in members:
+        pred = ml_extended.predict_attrition_risk(compute_attrition_features(m))
+        results.append({
+            "member_id": m.member_id, "member_name": m.full_name,
+            **pred,
+        })
+    results.sort(key=lambda r: r["attrition_probability"], reverse=True)
+    return Response(results)
+
+
+@api_view(["GET"])
+def api_ml_anomalies(request):
+    """GET /api/ml/anomalies/ — anomalous transactions detected via
+    IsolationForest fit on each member's own real transaction history."""
+    if not can_read_reports(request.user):
+        return Response({"error": "Admin, Treasurer, Secretary or Auditor only"}, status=403)
+    txns = Transaction.objects.select_related("member__user").order_by("-date")[:1000]
+    flagged = ml_extended.detect_anomalous_transactions(txns)[:50]
+    return Response([
+        {
+            "transaction_id": t.transaction_id,
+            "member_id": t.member.member_id,
+            "member_name": t.member.full_name,
+            "transaction_type": t.get_transaction_type_display(),
+            "amount": float(t.amount),
+            "date": t.date.isoformat(),
+            "anomaly_score": round(score, 3),
+        }
+        for t, score in flagged
+    ])
+
+
+@api_view(["GET"])
+def api_ml_extended_metrics(request):
+    """GET /api/ml/extended-metrics/ — accuracy/etc for the shortfall and
+    attrition models, same shape as the existing loan model's metrics."""
+    if not can_read_reports(request.user):
+        return Response({"error": "Admin, Treasurer, Secretary or Auditor only"}, status=403)
+    shortfall = ml_extended.get_shortfall_metrics()
+    attrition = ml_extended.get_attrition_metrics()
+    return Response({
+        "shortfall": {k: v for k, v in shortfall.items() if k != "feature_importances"},
+        "attrition": {k: v for k, v in attrition.items() if k != "feature_importances"},
+    })
+
+
+@api_view(["POST"])
+def api_ml_retrain_extended(request):
+    """POST /api/ml/retrain-extended/ — retrain shortfall + attrition models."""
+    if not is_full_admin(request.user):
+        return Response({"error": "Admin only"}, status=403)
+    metrics = ml_extended.train_extended_models(n_samples=1000)
+    return Response({
+        "success": True,
+        "shortfall_accuracy": metrics["shortfall"]["accuracy"],
+        "attrition_accuracy": metrics["attrition"]["accuracy"],
+    })
 
 
 @api_view(["GET"])
